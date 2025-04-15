@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,7 +16,11 @@ import (
 	"sync"
 )
 
-const cacheFileName = ".maskdump_cache.json"
+const (
+	cacheFileName  = ".maskdump_cache.json"
+	maxBufferSize  = 1024 * 1024 * 10 // 10MB
+	initialBufSize = 4096             // Начальный размер буфера
+)
 
 var (
 	emailRegex = regexp.MustCompile(`\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b`)
@@ -224,19 +229,26 @@ func main() {
 		}
 	}
 
-	scanner := bufio.NewScanner(os.Stdin)
-	writer := bufio.NewWriter(os.Stdout)
+	reader := bufio.NewReaderSize(os.Stdin, maxBufferSize)
+	writer := bufio.NewWriterSize(os.Stdout, maxBufferSize)
 	defer writer.Flush()
 
-	for scanner.Scan() {
-		line := scanner.Text()
-		maskedLine := processLine(line, config, cache)
-		writer.WriteString(maskedLine + "\n")
-	}
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+			os.Exit(1)
+		}
 
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
-		os.Exit(1)
+		maskedLine := processLine(line, config, cache)
+		_, err = writer.WriteString(maskedLine)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing output: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	if config.cacheEnabled && cache != nil {
