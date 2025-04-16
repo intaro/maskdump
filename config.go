@@ -11,8 +11,12 @@ import (
 )
 
 const (
-	defaultCacheFileName  = ".maskdump_cache.json"
-	defaultConfigFileName = "maskdump.conf"
+	defaultCacheFileName   = ".maskdump_cache.json"
+	defaultConfigFileName  = "maskdump.conf"
+	defaultEmailRegex      = `\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b`
+	defaultPhoneRegex      = `(?:\+7|7|8)?(?:[\s\-\(\)]*\d){10}`
+	defaultMemoryLimitMB   = 1024 * 4 // 4GB
+	defaultCacheFlushCount = 10000
 )
 
 type Config struct {
@@ -25,15 +29,7 @@ type Config struct {
 	CacheFlushCount int    `json:"cache_flush_count"`
 }
 
-var (
-	appConfig      Config
-	emailRegex     *regexp.Regexp
-	phoneRegex     *regexp.Regexp
-	emailWhiteList map[string]struct{}
-	phoneWhiteList map[string]struct{}
-)
-
-func loadWhiteList(path string) (map[string]struct{}, error) {
+func LoadWhiteList(path string) (map[string]struct{}, error) {
 	whiteList := make(map[string]struct{})
 
 	if path == "" {
@@ -61,9 +57,9 @@ func loadWhiteList(path string) (map[string]struct{}, error) {
 	return whiteList, nil
 }
 
-func loadConfig(configPath string) error {
+func LoadConfig(configPath string) error {
 	// Set default values
-	appConfig = Config{
+	AppConfig = Config{
 		CachePath:       filepath.Join(os.Getenv("HOME"), defaultCacheFileName),
 		EmailRegex:      defaultEmailRegex,
 		PhoneRegex:      defaultPhoneRegex,
@@ -87,28 +83,28 @@ func loadConfig(configPath string) error {
 		return nil // File not found - use default settings
 	}
 
-	if err := json.Unmarshal(data, &appConfig); err != nil {
+	if err := json.Unmarshal(data, &AppConfig); err != nil {
 		return fmt.Errorf("invalid config file: %v", err)
 	}
 
 	// Load white lists
-	emailWhiteList, err = loadWhiteList(appConfig.EmailWhiteList)
+	EmailWhiteList, err = LoadWhiteList(AppConfig.EmailWhiteList)
 	if err != nil {
 		return fmt.Errorf("failed to load email white list: %v", err)
 	}
 
-	phoneWhiteList, err = loadWhiteList(appConfig.PhoneWhiteList)
+	PhoneWhiteList, err = LoadWhiteList(AppConfig.PhoneWhiteList)
 	if err != nil {
 		return fmt.Errorf("failed to load phone white list: %v", err)
 	}
 
 	// Compile regular expressions
-	emailRegex, err = regexp.Compile(appConfig.EmailRegex)
+	EmailRegex, err = regexp.Compile(AppConfig.EmailRegex)
 	if err != nil {
 		return fmt.Errorf("invalid email regex: %v", err)
 	}
 
-	phoneRegex, err = regexp.Compile(appConfig.PhoneRegex)
+	PhoneRegex, err = regexp.Compile(AppConfig.PhoneRegex)
 	if err != nil {
 		return fmt.Errorf("invalid phone regex: %v", err)
 	}

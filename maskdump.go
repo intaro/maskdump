@@ -19,11 +19,7 @@ import (
 )
 
 const (
-	defaultMaxBufferSize   = 1024 * 1024 * 10 // 10MB
-	defaultEmailRegex      = `\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b`
-	defaultPhoneRegex      = `(?:\+7|7|8)?(?:[\s\-\(\)]*\d){10}`
-	defaultMemoryLimitMB   = 1024 * 4 // 4GB
-	defaultCacheFlushCount = 10000
+	defaultMaxBufferSize = 1024 * 1024 * 10 // 10MB
 )
 
 type Cache struct {
@@ -70,7 +66,7 @@ func freeMemory(cache *Cache) {
 	}
 
 	// Flush cache to disk if possible
-	if appConfig.CachePath != "" {
+	if AppConfig.CachePath != "" {
 		saveCache(cache)
 	}
 
@@ -91,7 +87,7 @@ func loadCache() (*Cache, error) {
 		Phones: make(map[string]string),
 	}
 
-	data, err := os.ReadFile(appConfig.CachePath)
+	data, err := os.ReadFile(AppConfig.CachePath)
 	if err != nil {
 		return cache, nil
 	}
@@ -109,7 +105,7 @@ func saveCache(cache *Cache) error {
 		return err
 	}
 
-	return os.WriteFile(appConfig.CachePath, data, 0644)
+	return os.WriteFile(AppConfig.CachePath, data, 0644)
 }
 
 func parseFlags() MaskConfig {
@@ -139,7 +135,7 @@ func validateAlgorithms(config MaskConfig) error {
 
 func maskEmailLightHash(email string, cache *Cache) string {
 	// Проверяем белый список
-	if _, ok := emailWhiteList[email]; ok {
+	if _, ok := EmailWhiteList[email]; ok {
 		return email
 	}
 
@@ -183,7 +179,7 @@ func maskEmailLightHash(email string, cache *Cache) string {
 
 func maskPhoneLightMask(phone string, cache *Cache) string {
 	// Проверяем белый список
-	if _, ok := phoneWhiteList[phone]; ok {
+	if _, ok := PhoneWhiteList[phone]; ok {
 		return phone
 	}
 
@@ -247,12 +243,12 @@ func maskPhoneLightMask(phone string, cache *Cache) string {
 
 func processLine(line string, config MaskConfig, cache *Cache) string {
 	if config.emailAlgorithm == "light-hash" {
-		line = emailRegex.ReplaceAllStringFunc(line, func(email string) string {
+		line = EmailRegex.ReplaceAllStringFunc(line, func(email string) string {
 			return maskEmailLightHash(email, cache)
 		})
 	}
 	if config.phoneAlgorithm == "light-mask" {
-		line = phoneRegex.ReplaceAllStringFunc(line, func(phone string) string {
+		line = PhoneRegex.ReplaceAllStringFunc(line, func(phone string) string {
 			return maskPhoneLightMask(phone, cache)
 		})
 	}
@@ -267,7 +263,7 @@ func main() {
 	}
 
 	// Load configuration
-	if err := loadConfig(config.configFile); err != nil {
+	if err := LoadConfig(config.configFile); err != nil {
 		fmt.Fprintf(os.Stderr, "Config error: %v\n", err)
 		os.Exit(1)
 	}
@@ -282,7 +278,7 @@ func main() {
 	}
 
 	// Set memory limit
-	memoryLimit = int64(appConfig.MemoryLimitMB) * 1024 * 1024
+	memoryLimit = int64(AppConfig.MemoryLimitMB) * 1024 * 1024
 	go trackMemoryUsage()
 
 	reader := bufio.NewReaderSize(os.Stdin, defaultMaxBufferSize)
@@ -308,7 +304,7 @@ func main() {
 		}
 
 		lineCount++
-		if lineCount%appConfig.CacheFlushCount == 0 {
+		if lineCount%AppConfig.CacheFlushCount == 0 {
 			if checkMemoryLimit() {
 				freeMemory(cache)
 			}
