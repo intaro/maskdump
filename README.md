@@ -29,7 +29,7 @@ Use cases:
    ```
 3. Build the binary:
    ```bash
-   go build -o maskdump
+   go build -o maskdump maskdump.go
    ```
 
 ## Usage
@@ -122,7 +122,7 @@ MaskDump - мощный инструмент для анонимизации б�
    ```
 3. Соберите бинарник:
    ```bash
-   go build -o maskdump
+   go build -o maskdump maskdump.go
    ```
 
 ## Использование

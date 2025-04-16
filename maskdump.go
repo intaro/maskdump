@@ -12,24 +12,31 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
-	defaultCacheFileName  = ".maskdump_cache.json"
-	defaultMaxBufferSize  = 1024 * 1024 * 10 // 10MB
-	defaultInitialBufSize = 4096             // Начальный размер буфера
-	defaultEmailRegex     = `\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b`
-	defaultPhoneRegex     = `(?:\+7|7|8)?(?:[\s\-\(\)]*\d){10}`
+	defaultCacheFileName   = ".maskdump_cache.json"
+	defaultMaxBufferSize   = 1024 * 1024 * 10 // 10MB
+	defaultInitialBufSize  = 4096             // Начальный размер буфера
+	defaultEmailRegex      = `\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b`
+	defaultPhoneRegex      = `(?:\+7|7|8)?(?:[\s\-\(\)]*\d){10}`
+	defaultMemoryLimitMB   = 1024 * 4 // 4GB
+	defaultCacheFlushCount = 10000
 )
 
 type Config struct {
-	CachePath      string `json:"cache_path"`
-	EmailRegex     string `json:"email_regex"`
-	PhoneRegex     string `json:"phone_regex"`
-	EmailWhiteList string `json:"email_white_list"`
-	PhoneWhiteList string `json:"phone_white_list"`
+	CachePath       string `json:"cache_path"`
+	EmailRegex      string `json:"email_regex"`
+	PhoneRegex      string `json:"phone_regex"`
+	EmailWhiteList  string `json:"email_white_list"`
+	PhoneWhiteList  string `json:"phone_white_list"`
+	MemoryLimitMB   int    `json:"memory_limit_mb"`
+	CacheFlushCount int    `json:"cache_flush_count"`
 }
 
 type Cache struct {
@@ -46,12 +53,55 @@ type MaskConfig struct {
 }
 
 var (
-	appConfig      Config
-	emailRegex     *regexp.Regexp
-	phoneRegex     *regexp.Regexp
-	emailWhiteList map[string]struct{}
-	phoneWhiteList map[string]struct{}
+	appConfig       Config
+	emailRegex      *regexp.Regexp
+	phoneRegex      *regexp.Regexp
+	emailWhiteList  map[string]struct{}
+	phoneWhiteList  map[string]struct{}
+	memoryLimit     int64
+	currentMemUsage int64
+	memMutex        sync.Mutex
 )
+
+func trackMemoryUsage() {
+	for {
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+
+		memMutex.Lock()
+		currentMemUsage = int64(m.Alloc)
+		memMutex.Unlock()
+
+		time.Sleep(500 * time.Millisecond)
+	}
+}
+
+func checkMemoryLimit() bool {
+	memMutex.Lock()
+	defer memMutex.Unlock()
+	return currentMemUsage > memoryLimit
+}
+
+func freeMemory(cache *Cache) {
+	if cache == nil {
+		return
+	}
+
+	// Flush cache to disk if possible
+	if appConfig.CachePath != "" {
+		saveCache(cache)
+	}
+
+	// Clear internal caches
+	cache.Lock()
+	cache.Emails = make(map[string]string)
+	cache.Phones = make(map[string]string)
+	cache.Unlock()
+
+	// Force garbage collection
+	runtime.GC()
+	debug.FreeOSMemory()
+}
 
 func loadWhiteList(path string) (map[string]struct{}, error) {
 	whiteList := make(map[string]struct{})
@@ -84,11 +134,13 @@ func loadWhiteList(path string) (map[string]struct{}, error) {
 func loadConfig(configPath string) error {
 	// Установка значений по умолчанию
 	appConfig = Config{
-		CachePath:      filepath.Join(os.Getenv("HOME"), defaultCacheFileName),
-		EmailRegex:     defaultEmailRegex,
-		PhoneRegex:     defaultPhoneRegex,
-		EmailWhiteList: "",
-		PhoneWhiteList: "",
+		CachePath:       filepath.Join(os.Getenv("HOME"), defaultCacheFileName),
+		EmailRegex:      defaultEmailRegex,
+		PhoneRegex:      defaultPhoneRegex,
+		EmailWhiteList:  "",
+		PhoneWhiteList:  "",
+		MemoryLimitMB:   defaultMemoryLimitMB,
+		CacheFlushCount: defaultCacheFlushCount,
 	}
 
 	if configPath == "" {
@@ -330,10 +382,15 @@ func main() {
 		}
 	}
 
+	// Set memory limit
+	memoryLimit = int64(appConfig.MemoryLimitMB) * 1024 * 1024
+	go trackMemoryUsage()
+
 	reader := bufio.NewReaderSize(os.Stdin, defaultMaxBufferSize)
 	writer := bufio.NewWriterSize(os.Stdout, defaultMaxBufferSize)
 	defer writer.Flush()
 
+	lineCount := 0
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -349,6 +406,13 @@ func main() {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing output: %v\n", err)
 			os.Exit(1)
+		}
+
+		lineCount++
+		if lineCount%appConfig.CacheFlushCount == 0 {
+			if checkMemoryLimit() {
+				freeMemory(cache)
+			}
 		}
 	}
 

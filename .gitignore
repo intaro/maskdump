@@ -1,0 +1,4 @@
+*.conf
+*.txt
+*cache.json
+maskdump
