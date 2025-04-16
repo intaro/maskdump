@@ -13,8 +13,8 @@ import (
 const (
 	defaultCacheFileName   = ".maskdump_cache.json"
 	defaultConfigFileName  = "maskdump.conf"
-	defaultEmailRegex      = `\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b`
-	defaultPhoneRegex      = `(?:\+7|7|8)?(?:[\s\-\(\)]*\d){10}`
+	defaultEmailRegex      = `\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}\b`
+	defaultPhoneRegex      = `(?:\+7|7|8|9)[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}\b`
 	defaultMemoryLimitMB   = 1024 * 4 // 4GB
 	defaultCacheFlushCount = 10000
 )
