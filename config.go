@@ -58,8 +58,8 @@ func LoadWhiteList(path string) (map[string]struct{}, error) {
 }
 
 func LoadConfig(configPath string) error {
-	// Set default values
-	AppConfig = Config{
+	// Set default values first
+	defaultConfig := Config{
 		CachePath:       filepath.Join(os.Getenv("HOME"), defaultCacheFileName),
 		EmailRegex:      defaultEmailRegex,
 		PhoneRegex:      defaultPhoneRegex,
@@ -68,6 +68,9 @@ func LoadConfig(configPath string) error {
 		MemoryLimitMB:   defaultMemoryLimitMB,
 		CacheFlushCount: defaultCacheFlushCount,
 	}
+
+	// Apply default values
+	AppConfig = defaultConfig
 
 	if configPath == "" {
 		// Try to find config near the binary
@@ -83,8 +86,33 @@ func LoadConfig(configPath string) error {
 		return nil // File not found - use default settings
 	}
 
-	if err := json.Unmarshal(data, &AppConfig); err != nil {
+	// Create temporary struct to unmarshal JSON
+	var fileConfig Config
+	if err := json.Unmarshal(data, &fileConfig); err != nil {
 		return fmt.Errorf("invalid config file: %v", err)
+	}
+
+	// Override default values with non-empty values from config file
+	if fileConfig.CachePath != "" {
+		AppConfig.CachePath = fileConfig.CachePath
+	}
+	if fileConfig.EmailRegex != "" {
+		AppConfig.EmailRegex = fileConfig.EmailRegex
+	}
+	if fileConfig.PhoneRegex != "" {
+		AppConfig.PhoneRegex = fileConfig.PhoneRegex
+	}
+	if fileConfig.EmailWhiteList != "" {
+		AppConfig.EmailWhiteList = fileConfig.EmailWhiteList
+	}
+	if fileConfig.PhoneWhiteList != "" {
+		AppConfig.PhoneWhiteList = fileConfig.PhoneWhiteList
+	}
+	if fileConfig.MemoryLimitMB != 0 {
+		AppConfig.MemoryLimitMB = fileConfig.MemoryLimitMB
+	}
+	if fileConfig.CacheFlushCount != 0 {
+		AppConfig.CacheFlushCount = fileConfig.CacheFlushCount
 	}
 
 	// Load white lists
