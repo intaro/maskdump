@@ -29,7 +29,7 @@ Use cases:
    ```
 3. Build the binary:
    ```bash
-   go build -o maskdump maskdump.go
+   go build -o maskdump .
    ```
 
 ## Usage
@@ -59,7 +59,9 @@ Create `maskdump.conf` in the same directory as the binary or specify path with 
   "email_regex": "\\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\\b",
   "phone_regex": "(?:\\+7|7|8)?(?:[\\s\\-\\(\\)]*\\d){10}",
   "email_white_list": "/path/to/white_list_email.txt",
-  "phone_white_list": "/path/to/white_list_phone.txt"
+  "phone_white_list": "/path/to/white_list_phone.txt",
+  "memory_limit_mb": 1024,
+  "cache_flush_count": 1000
 }
 ```
 
@@ -83,7 +85,7 @@ support@company.org
 
 ### Email (`light-hash`)
 - Preserves first character before @ and domain
-- Hashes remaining local part with MD5 (first 6 chars)
+- Hashes remaining local part with MD5 (first 6 chars of hash)
 
 ### Phone (`light-mask`)
 - Preserves original phone number format
@@ -122,7 +124,7 @@ MaskDump - мощный инструмент для анонимизации б�
    ```
 3. Соберите бинарник:
    ```bash
-   go build -o maskdump maskdump.go
+   go build -o maskdump .
    ```
 
 ## Использование
@@ -152,7 +154,9 @@ mysqldump dbname | ./maskdump --mask-email=light-hash --mask-phone=light-mask > 
   "email_regex": "\\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\\b",
   "phone_regex": "(?:\\+7|7|8)?(?:[\\s\\-\\(\\)]*\\d){10}",
   "email_white_list": "/path/to/white_list_email.txt",
-  "phone_white_list": "/path/to/white_list_phone.txt"
+  "phone_white_list": "/path/to/white_list_phone.txt",
+  "memory_limit_mb": 1024,
+  "cache_flush_count": 1000
 }
 ```
 
@@ -176,7 +180,7 @@ support@company.org
 
 ### Email (`light-hash`)
 - Сохраняет первый символ и домен
-- Хеширует остальную часть с помощью MD5 (первые 6 символов)
+- Хеширует остальную часть с помощью MD5 (первые 6 символов от хэша)
 
 ### Телефоны (`light-mask`)
 - Сохраняет исходный формат номера

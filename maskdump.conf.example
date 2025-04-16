@@ -3,5 +3,7 @@
   "email_regex": "\\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\\b",
   "phone_regex": "(?:\\+7|7|8)?(?:[\\s\\-\\(\\)]*\\d){10}",
   "email_white_list": "/path/to/white_list_email.txt",
-  "phone_white_list": "/path/to/white_list_phone.txt"
+  "phone_white_list": "/path/to/white_list_phone.txt",
+  "memory_limit_mb": 1024,
+  "cache_flush_count": 1000
 }
