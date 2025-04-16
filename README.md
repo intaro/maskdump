@@ -91,6 +91,17 @@ support@company.org
 - Preserves original phone number format
 - Replaces specific digits (2,3,5,6,8,10) with SHA256 hash digits
 
+## A quick example of the work
+
+The input is a typical database dump string. The output is the same dump, but with changed email and phone numbers:
+```bash
+$ echo "INSERT INTO users (id, email, phone) VALUES (123, 't098f6b@example.com', '+7 (904) 111-22-33'), (124, 'admin@site.org', '8-900-000-00-00');" | ./maskdump  --mask-email=light-hash --mask-phone=light-mask --no-cache
+```
+Result:
+```bash
+$ INSERT INTO users (id, email, phone) VALUES (123, 't863b42@example.com', '+7 (154) 101-32-83'), (124, 'aece89e@site.org', '8-190-420-50-50');
+```
+
 ---
 
 # MaskDump - Инструмент анонимизации баз данных
@@ -185,3 +196,14 @@ support@company.org
 ### Телефоны (`light-mask`)
 - Сохраняет исходный формат номера
 - Заменяет определённые цифры (2,3,5,6,8,10) на цифры из SHA256 хэша
+
+## Быстрый пример работы
+
+На вход подаём строку типичного дампа базы данных. На выходе получаем этот же дамп, но с изменёнными email и телефонами:
+```bash
+$ echo "INSERT INTO users (id, email, phone) VALUES (123, 't098f6b@example.com', '+7 (904) 111-22-33'), (124, 'admin@site.org', '8-900-000-00-00');" | ./maskdump  --mask-email=light-hash --mask-phone=light-mask --no-cache
+```
+Результат:
+```bash
+$ INSERT INTO users (id, email, phone) VALUES (123, 't863b42@example.com', '+7 (154) 101-32-83'), (124, 'aece89e@site.org', '8-190-420-50-50');
+```
