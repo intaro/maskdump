@@ -17,15 +17,18 @@ import (
 )
 
 const (
-	cacheFileName  = ".maskdump_cache.json"
-	maxBufferSize  = 1024 * 1024 * 10 // 10MB
-	initialBufSize = 4096             // Начальный размер буфера
+	defaultCacheFileName  = ".maskdump_cache.json"
+	defaultMaxBufferSize  = 1024 * 1024 * 10 // 10MB
+	defaultInitialBufSize = 4096             // Начальный размер буфера
+	defaultEmailRegex     = `\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b`
+	defaultPhoneRegex     = `(?:\+7|7|8)?(?:[\s\-\(\)]*\d){10}`
 )
 
-var (
-	emailRegex = regexp.MustCompile(`\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b`)
-	phoneRegex = regexp.MustCompile(`(?:\+7|7|8)?(?:[\s\-\(\)]*\d){10}`)
-)
+type Config struct {
+	CachePath  string `json:"cache_path"`
+	EmailRegex string `json:"email_regex"`
+	PhoneRegex string `json:"phone_regex"`
+}
 
 type Cache struct {
 	Emails map[string]string `json:"emails"`
@@ -37,6 +40,53 @@ type MaskConfig struct {
 	emailAlgorithm string
 	phoneAlgorithm string
 	cacheEnabled   bool
+	configFile     string
+}
+
+var (
+	appConfig  Config
+	emailRegex *regexp.Regexp
+	phoneRegex *regexp.Regexp
+)
+
+func loadConfig(configPath string) error {
+	// Установка значений по умолчанию
+	appConfig = Config{
+		CachePath:  filepath.Join(os.Getenv("HOME"), defaultCacheFileName),
+		EmailRegex: defaultEmailRegex,
+		PhoneRegex: defaultPhoneRegex,
+	}
+
+	if configPath == "" {
+		// Попробуем найти конфиг рядом с бинарником
+		exePath, err := os.Executable()
+		if err != nil {
+			return nil // Продолжаем с настройками по умолчанию
+		}
+		configPath = filepath.Join(filepath.Dir(exePath), "maskdump.conf")
+	}
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil // Файл не найден - используем настройки по умолчанию
+	}
+
+	if err := json.Unmarshal(data, &appConfig); err != nil {
+		return fmt.Errorf("invalid config file: %v", err)
+	}
+
+	// Компилируем регулярные выражения
+	emailRegex, err = regexp.Compile(appConfig.EmailRegex)
+	if err != nil {
+		return fmt.Errorf("invalid email regex: %v", err)
+	}
+
+	phoneRegex, err = regexp.Compile(appConfig.PhoneRegex)
+	if err != nil {
+		return fmt.Errorf("invalid phone regex: %v", err)
+	}
+
+	return nil
 }
 
 func loadCache() (*Cache, error) {
@@ -45,13 +95,7 @@ func loadCache() (*Cache, error) {
 		Phones: make(map[string]string),
 	}
 
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return cache, nil
-	}
-
-	cachePath := filepath.Join(homeDir, cacheFileName)
-	data, err := os.ReadFile(cachePath)
+	data, err := os.ReadFile(appConfig.CachePath)
 	if err != nil {
 		return cache, nil
 	}
@@ -64,30 +108,26 @@ func saveCache(cache *Cache) error {
 	cache.RLock()
 	defer cache.RUnlock()
 
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	cachePath := filepath.Join(homeDir, cacheFileName)
 	data, err := json.Marshal(cache)
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(cachePath, data, 0644)
+	return os.WriteFile(appConfig.CachePath, data, 0644)
 }
 
 func parseFlags() MaskConfig {
 	emailAlg := flag.String("mask-email", "", "Email masking algorithm (light-hash)")
 	phoneAlg := flag.String("mask-phone", "", "Phone masking algorithm (light-mask)")
 	noCache := flag.Bool("no-cache", false, "Disable caching")
+	configFile := flag.String("config", "", "Path to config file")
 	flag.Parse()
 
 	return MaskConfig{
 		emailAlgorithm: *emailAlg,
 		phoneAlgorithm: *phoneAlg,
 		cacheEnabled:   !*noCache,
+		configFile:     *configFile,
 	}
 }
 
@@ -220,6 +260,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Загрузка конфигурации
+	if err := loadConfig(config.configFile); err != nil {
+		fmt.Fprintf(os.Stderr, "Config error: %v\n", err)
+		os.Exit(1)
+	}
+
 	var cache *Cache
 	if config.cacheEnabled {
 		var err error
@@ -229,8 +275,8 @@ func main() {
 		}
 	}
 
-	reader := bufio.NewReaderSize(os.Stdin, maxBufferSize)
-	writer := bufio.NewWriterSize(os.Stdout, maxBufferSize)
+	reader := bufio.NewReaderSize(os.Stdin, defaultMaxBufferSize)
+	writer := bufio.NewWriterSize(os.Stdout, defaultMaxBufferSize)
 	defer writer.Flush()
 
 	for {
