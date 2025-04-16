@@ -25,9 +25,11 @@ const (
 )
 
 type Config struct {
-	CachePath  string `json:"cache_path"`
-	EmailRegex string `json:"email_regex"`
-	PhoneRegex string `json:"phone_regex"`
+	CachePath      string `json:"cache_path"`
+	EmailRegex     string `json:"email_regex"`
+	PhoneRegex     string `json:"phone_regex"`
+	EmailWhiteList string `json:"email_white_list"`
+	PhoneWhiteList string `json:"phone_white_list"`
 }
 
 type Cache struct {
@@ -44,17 +46,49 @@ type MaskConfig struct {
 }
 
 var (
-	appConfig  Config
-	emailRegex *regexp.Regexp
-	phoneRegex *regexp.Regexp
+	appConfig      Config
+	emailRegex     *regexp.Regexp
+	phoneRegex     *regexp.Regexp
+	emailWhiteList map[string]struct{}
+	phoneWhiteList map[string]struct{}
 )
+
+func loadWhiteList(path string) (map[string]struct{}, error) {
+	whiteList := make(map[string]struct{})
+
+	if path == "" {
+		return whiteList, nil
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			whiteList[line] = struct{}{}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return whiteList, nil
+}
 
 func loadConfig(configPath string) error {
 	// Установка значений по умолчанию
 	appConfig = Config{
-		CachePath:  filepath.Join(os.Getenv("HOME"), defaultCacheFileName),
-		EmailRegex: defaultEmailRegex,
-		PhoneRegex: defaultPhoneRegex,
+		CachePath:      filepath.Join(os.Getenv("HOME"), defaultCacheFileName),
+		EmailRegex:     defaultEmailRegex,
+		PhoneRegex:     defaultPhoneRegex,
+		EmailWhiteList: "",
+		PhoneWhiteList: "",
 	}
 
 	if configPath == "" {
@@ -73,6 +107,17 @@ func loadConfig(configPath string) error {
 
 	if err := json.Unmarshal(data, &appConfig); err != nil {
 		return fmt.Errorf("invalid config file: %v", err)
+	}
+
+	// Загружаем белые списки
+	emailWhiteList, err = loadWhiteList(appConfig.EmailWhiteList)
+	if err != nil {
+		return fmt.Errorf("failed to load email white list: %v", err)
+	}
+
+	phoneWhiteList, err = loadWhiteList(appConfig.PhoneWhiteList)
+	if err != nil {
+		return fmt.Errorf("failed to load phone white list: %v", err)
 	}
 
 	// Компилируем регулярные выражения
@@ -142,6 +187,11 @@ func validateAlgorithms(config MaskConfig) error {
 }
 
 func maskEmailLightHash(email string, cache *Cache) string {
+	// Проверяем белый список
+	if _, ok := emailWhiteList[email]; ok {
+		return email
+	}
+
 	if cache != nil {
 		cache.RLock()
 		if masked, exists := cache.Emails[email]; exists {
@@ -181,6 +231,11 @@ func maskEmailLightHash(email string, cache *Cache) string {
 }
 
 func maskPhoneLightMask(phone string, cache *Cache) string {
+	// Проверяем белый список
+	if _, ok := phoneWhiteList[phone]; ok {
+		return phone
+	}
+
 	if cache != nil {
 		cache.RLock()
 		if masked, exists := cache.Phones[phone]; exists {
