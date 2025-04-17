@@ -10,4 +10,5 @@ var (
 	PhoneRegex     *regexp.Regexp
 	EmailWhiteList map[string]struct{}
 	PhoneWhiteList map[string]struct{}
+	SkipTableList  map[string]struct{}
 )

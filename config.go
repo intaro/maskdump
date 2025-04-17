@@ -14,19 +14,20 @@ const (
 	defaultCacheFileName   = ".maskdump_cache.json"
 	defaultConfigFileName  = "maskdump.conf"
 	defaultEmailRegex      = `\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}\b`
-	defaultPhoneRegex      = `(?:\+7|7|8|9)[\s-]?\(?\d{2,3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}\b`
+	defaultPhoneRegex      = `\b(?:\+7|7|8)(?:\s?\(?\d{3}\)?\s?\d{3}[\s-]?\d{2}[\s-]?\d{2}|\d{10})\b`
 	defaultMemoryLimitMB   = 1024 * 4 // 4GB
 	defaultCacheFlushCount = 10000
 )
 
 type Config struct {
-	CachePath       string `json:"cache_path"`
-	EmailRegex      string `json:"email_regex"`
-	PhoneRegex      string `json:"phone_regex"`
-	EmailWhiteList  string `json:"email_white_list"`
-	PhoneWhiteList  string `json:"phone_white_list"`
-	MemoryLimitMB   int    `json:"memory_limit_mb"`
-	CacheFlushCount int    `json:"cache_flush_count"`
+	CachePath               string `json:"cache_path"`
+	EmailRegex              string `json:"email_regex"`
+	PhoneRegex              string `json:"phone_regex"`
+	EmailWhiteList          string `json:"email_white_list"`
+	PhoneWhiteList          string `json:"phone_white_list"`
+	MemoryLimitMB           int    `json:"memory_limit_mb"`
+	CacheFlushCount         int    `json:"cache_flush_count"`
+	SkipInsertIntoTableList string `json:"skip_insert_into_table_list"`
 }
 
 func LoadWhiteList(path string) (map[string]struct{}, error) {
@@ -57,16 +58,45 @@ func LoadWhiteList(path string) (map[string]struct{}, error) {
 	return whiteList, nil
 }
 
+func LoadSkipList(path string) (map[string]struct{}, error) {
+	skipList := make(map[string]struct{})
+
+	if path == "" {
+		return skipList, nil
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			skipList[line] = struct{}{}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return skipList, nil
+}
+
 func LoadConfig(configPath string) error {
 	// Set default values first
 	defaultConfig := Config{
-		CachePath:       filepath.Join(os.Getenv("HOME"), defaultCacheFileName),
-		EmailRegex:      defaultEmailRegex,
-		PhoneRegex:      defaultPhoneRegex,
-		EmailWhiteList:  "",
-		PhoneWhiteList:  "",
-		MemoryLimitMB:   defaultMemoryLimitMB,
-		CacheFlushCount: defaultCacheFlushCount,
+		CachePath:               filepath.Join(os.Getenv("HOME"), defaultCacheFileName),
+		EmailRegex:              defaultEmailRegex,
+		PhoneRegex:              defaultPhoneRegex,
+		EmailWhiteList:          "",
+		PhoneWhiteList:          "",
+		MemoryLimitMB:           defaultMemoryLimitMB,
+		CacheFlushCount:         defaultCacheFlushCount,
+		SkipInsertIntoTableList: "",
 	}
 
 	// Apply default values
@@ -114,6 +144,9 @@ func LoadConfig(configPath string) error {
 	if fileConfig.CacheFlushCount != 0 {
 		AppConfig.CacheFlushCount = fileConfig.CacheFlushCount
 	}
+	if fileConfig.SkipInsertIntoTableList != "" {
+		AppConfig.SkipInsertIntoTableList = fileConfig.SkipInsertIntoTableList
+	}
 
 	// Load white lists
 	EmailWhiteList, err = LoadWhiteList(AppConfig.EmailWhiteList)
@@ -135,6 +168,11 @@ func LoadConfig(configPath string) error {
 	PhoneRegex, err = regexp.Compile(AppConfig.PhoneRegex)
 	if err != nil {
 		return fmt.Errorf("invalid phone regex: %v", err)
+	}
+
+	SkipTableList, err = LoadSkipList(AppConfig.SkipInsertIntoTableList)
+	if err != nil {
+		return fmt.Errorf("failed to load skip table list: %v", err)
 	}
 
 	return nil

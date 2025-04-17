@@ -1,4 +1,4 @@
 *.conf
 *.txt
-*cache.json
+*cache*.json
 maskdump

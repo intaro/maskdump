@@ -242,6 +242,14 @@ func maskPhoneLightMask(phone string, cache *Cache) string {
 }
 
 func processLine(line string, config MaskConfig, cache *Cache) string {
+	if len(SkipTableList) > 0 {
+		for table := range SkipTableList {
+			if strings.HasPrefix(line, "INSERT INTO `"+table+"`") {
+				return ""
+			}
+		}
+	}
+
 	if config.emailAlgorithm == "light-hash" {
 		line = EmailRegex.ReplaceAllStringFunc(line, func(email string) string {
 			return maskEmailLightHash(email, cache)
@@ -297,10 +305,12 @@ func main() {
 		}
 
 		maskedLine := processLine(line, config, cache)
-		_, err = writer.WriteString(maskedLine)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing output: %v\n", err)
-			os.Exit(1)
+		if strings.TrimSpace(maskedLine) != "" {
+			_, err = writer.WriteString(maskedLine)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error writing output: %v\n", err)
+				os.Exit(1)
+			}
 		}
 
 		lineCount++
