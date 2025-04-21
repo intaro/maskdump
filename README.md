@@ -61,7 +61,18 @@ Create `maskdump.conf` in the same directory as the binary or specify path with 
   "email_white_list": "/path/to/white_list_email.txt",
   "phone_white_list": "/path/to/white_list_phone.txt",
   "memory_limit_mb": 1024,
-  "cache_flush_count": 1000
+  "cache_flush_count": 1000,
+  "skip_insert_into_table_list": "/path/to/skip_table_list.txt",
+  "masking": {
+    "email": {
+      "target": "username:2-",
+      "value": "hash:6"
+    },
+    "phone": {
+      "target": "2,3,5,6,8,10",
+      "value": "hash"
+    }
+  }
 }
 ```
 
@@ -84,12 +95,17 @@ support@company.org
 ## Masking Algorithms
 
 ### Email (`light-hash`)
-- Preserves first character before @ and domain
-- Hashes remaining local part with MD5 (first 6 chars of hash)
+- The characters to be replaced depend on the settings. By default, the configuration preserves only the first character and the domain, while all other characters in the email username are replaced with the first 6 characters of the MD5 hash of the entire original email string.
+- Possible email masking configuration options:
+  - `target="2-5"` and `value="hash"` - Numbers separated by a hyphen indicate character positions to replace; "hash" means replacement with characters from the MD5 hash of the original email. The range can be open-ended: "2-" replaces the second and all subsequent characters; "-5" replaces only the first five characters in the email.
+  - `target="1~1"` and `value="hash"` - Numbers separated by a tilde indicate how many characters to keep unchanged at the start and end of the string (all others are replaced); "hash" means replacement with characters from the MD5 hash of the original email. The range can be open-ended: "2~" keeps the first and second characters unchanged, replacing all subsequent characters; "~1" replaces all characters except the last one.
+  - `target="1,3,5,7"` and `value="hash"` - Comma-separated numbers indicate specific character positions to change; "hash" means replacement with characters from the MD5 hash of the original email.
+  - Target can include modifiers: "username:" - modify only the left part of the email (before @) and "domain:" - modify only the right part of the email (after @). For example, `target="username:2-"` means replacing the second and all subsequent characters in the left part of the email, while everything else (first character, @ symbol, and right part of the email) remains unchanged.
+  - `value="*"` - means replacement with asterisk characters
 
-### Phone (`light-mask`)
-- Preserves original phone number format
-- Replaces specific digits (2,3,5,6,8,10) with SHA256 hash digits
+### Phone Numbers (`light-mask`)
+- Preserves the original phone number format
+- Replaces specific digits with digits from the SHA256 hash. Which digits get replaced is determined by settings. By default, digits at these positions are replaced: 2, 3, 5, 6, 8, and 10.
 
 ## A quick example of the work
 
@@ -99,7 +115,7 @@ $ echo "INSERT INTO users (id, email, phone) VALUES (123, 't098f6b@example.com',
 ```
 Result:
 ```bash
-$ INSERT INTO users (id, email, phone) VALUES (123, 't863b42@example.com', '+7 (154) 101-32-83'), (124, 'aece89e@site.org', '8-190-420-50-50');
+$ INSERT INTO users (id, email, phone) VALUES (123, 'ta6f5ce@example.com', '+7 (354) 101-72-53'), (124, 'a21232f@site.org', '8-700-160-90-20');
 ```
 
 ---
@@ -167,7 +183,18 @@ mysqldump dbname | ./maskdump --mask-email=light-hash --mask-phone=light-mask > 
   "email_white_list": "/path/to/white_list_email.txt",
   "phone_white_list": "/path/to/white_list_phone.txt",
   "memory_limit_mb": 1024,
-  "cache_flush_count": 1000
+  "cache_flush_count": 1000,
+  "skip_insert_into_table_list": "/path/to/skip_table_list.txt",
+  "masking": {
+    "email": {
+      "target": "username:2-",
+      "value": "hash:6"
+    },
+    "phone": {
+      "target": "2,3,5,6,8,10",
+      "value": "hash"
+    }
+  }
 }
 ```
 
@@ -190,12 +217,17 @@ support@company.org
 ## Алгоритмы маскировки
 
 ### Email (`light-hash`)
-- Сохраняет первый символ и домен
-- Хеширует остальную часть с помощью MD5 (первые 6 символов от хэша)
+- Заменяемые символы зависят от настроек. По-умолчанию заданы настройки, при которых сохраняется только первый символ и домен, а все прочие символы имени пользователя из email заменяются на первые 6 символов MD5 хэша от всей исходной строки email
+- Возможные варианты настроек макировки email:
+  - `target="2-5"` и `value="hash"` — числа через дефис — это номера позиций символов, которые заменяем; "hash" — означает, что заменяем символами из MD5 хэша от исходного email. Диапазон заменяемых позиций символов может быть открытым: "2-" — замена второго и всех последующих симолов; "-5" — замена только первых пяти символов в email.
+  - `target="1~1"` и `value="hash"` — числа через тильду — это количество символов, которые оставляем неизменными с начала и с конца строки (а все прочие заменяются); "hash" — означает, что заменяем символами из MD5 хэша от исходного email. Диапазон может быть открытым: "2~" — первый и второй символ остаются, в все последующие символы заменяются; "~1" — замена всех символов, кроме последнего.
+  - `target="1,3,5,7"` и `value="hash"` — числа через запятую — это номера поиций символов, которые изменям; "hash" — означает, что заменяем символами из MD5 хэша от исходного email.
+  - для target могут быть модификаторы: "username:" — изменять только левую часть email и "domain:" — изменять только правую часть email. Например, `target="username:2-"` означает замену второго и всех последующих символов левой части email, а всё остальное (первый символ, знак "@" и правая часть email) остаётся неизменным
+  - `value="*"` — означает замену на символ звёздочки
 
 ### Телефоны (`light-mask`)
 - Сохраняет исходный формат номера
-- Заменяет определённые цифры (2,3,5,6,8,10) на цифры из SHA256 хэша
+- Заменяет определённые цифры на цифры из SHA256 хэша. Что попадает под замену — определяется настройками. По-умолчанию, заменяются цифры на этих номерах позиций: 2, 3, 5, 6, 8 и 10.
 
 ## Быстрый пример работы
 
@@ -205,5 +237,5 @@ $ echo "INSERT INTO users (id, email, phone) VALUES (123, 't098f6b@example.com',
 ```
 Результат:
 ```bash
-$ INSERT INTO users (id, email, phone) VALUES (123, 't863b42@example.com', '+7 (154) 101-32-83'), (124, 'aece89e@site.org', '8-190-420-50-50');
+$ INSERT INTO users (id, email, phone) VALUES (123, 'ta6f5ce@example.com', '+7 (354) 101-72-53'), (124, 'a21232f@site.org', '8-700-160-90-20');
 ```

@@ -14,7 +14,7 @@ const (
 	defaultCacheFileName   = ".maskdump_cache.json"
 	defaultConfigFileName  = "maskdump.conf"
 	defaultEmailRegex      = `\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}\b`
-	defaultPhoneRegex      = `\b(?:\+7|7|8)(?:\s?\(?\d{3}\)?\s?\d{3}[\s-]?\d{2}[\s-]?\d{2}|\d{10})\b`
+	defaultPhoneRegex      = `\b(?:\+7|7|8)(?:[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}|\d{10})\b`
 	defaultMemoryLimitMB   = 1024 * 4 // 4GB
 	defaultCacheFlushCount = 10000
 )
@@ -134,6 +134,33 @@ func LoadConfig(configPath string) error {
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
+		// Load white lists
+		EmailWhiteList, err = LoadWhiteList(AppConfig.EmailWhiteList)
+		if err != nil {
+			return fmt.Errorf("failed to load email white list: %v", err)
+		}
+
+		PhoneWhiteList, err = LoadWhiteList(AppConfig.PhoneWhiteList)
+		if err != nil {
+			return fmt.Errorf("failed to load phone white list: %v", err)
+		}
+
+		// Compile regular expressions
+		EmailRegex, err = regexp.Compile(AppConfig.EmailRegex)
+		if err != nil {
+			return fmt.Errorf("invalid email regex: %v", err)
+		}
+
+		PhoneRegex, err = regexp.Compile(AppConfig.PhoneRegex)
+		if err != nil {
+			return fmt.Errorf("invalid phone regex: %v", err)
+		}
+
+		SkipTableList, err = LoadSkipList(AppConfig.SkipInsertIntoTableList)
+		if err != nil {
+			return fmt.Errorf("failed to load skip table list: %v", err)
+		}
+
 		return nil // File not found - use default settings
 	}
 
