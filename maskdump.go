@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -133,8 +134,137 @@ func validateAlgorithms(config MaskConfig) error {
 	return nil
 }
 
-func maskEmailLightHash(email string, cache *Cache) string {
-	// Проверяем белый список
+func parseTargetPositions(target string, length int) []int {
+	var positions []int
+
+	// Обработка модификаторов для email
+	parts := strings.Split(target, ":")
+	//modifier := ""
+	if len(parts) > 1 {
+		//modifier = parts[0]
+		target = parts[1]
+	}
+
+	// Обработка диапазонов
+	if strings.Contains(target, "-") {
+		rangeParts := strings.Split(target, "-")
+		start := 1
+		end := length
+
+		if rangeParts[0] != "" {
+			start, _ = strconv.Atoi(rangeParts[0])
+		}
+		if rangeParts[1] != "" {
+			end, _ = strconv.Atoi(rangeParts[1])
+		}
+
+		for i := start; i <= end && i <= length; i++ {
+			positions = append(positions, i-1) // переводим в 0-based
+		}
+		return positions
+	}
+
+	// Обработка тильды
+	if strings.Contains(target, "~") {
+		tildeParts := strings.Split(target, "~")
+		keepStart := 0
+		keepEnd := 0
+
+		if tildeParts[0] != "" {
+			keepStart, _ = strconv.Atoi(tildeParts[0])
+		}
+		if tildeParts[1] != "" {
+			keepEnd, _ = strconv.Atoi(tildeParts[1])
+		}
+
+		for i := 1; i <= length; i++ {
+			if (keepStart > 0 && i <= keepStart) ||
+				(keepEnd > 0 && i > length-keepEnd) {
+				continue
+			}
+			positions = append(positions, i-1)
+		}
+		return positions
+	}
+
+	// Обработка списка позиций
+	posParts := strings.Split(target, ",")
+	for _, p := range posParts {
+		pos, _ := strconv.Atoi(p)
+		if pos > 0 && pos <= length {
+			positions = append(positions, pos-1)
+		}
+	}
+
+	return positions
+}
+
+// value - string for masking
+// positions - slice of positions to mask (0-based)
+// maskValue - masking value (e.g. "*", "hash:6", "hash")
+// typeMaskingInfo - type of masking (Email or Phone)
+func applyMasking(value string, positions []int, maskValue string, typeMaskingInfo TypeMaskingInfo) string {
+	runes := []rune(value)
+	maskRunes := []rune{}
+
+	// Подготовка маскирующих символов
+	var hash string
+	if maskValue == "*" {
+		for i := 0; i < len(positions); i++ {
+			maskRunes = append(maskRunes, '*')
+		}
+	} else if strings.HasPrefix(maskValue, "hash") {
+		hashParts := strings.Split(maskValue, ":")
+		hashLen := 6 // по умолчанию
+		if len(hashParts) > 1 {
+			hashLen, _ = strconv.Atoi(hashParts[1])
+		}
+
+		if strings.HasPrefix(maskValue, "hash:") {
+			tmpHash := md5.Sum([]byte(value))
+			// Конвертируем в hex строку
+			hashStr := hex.EncodeToString(tmpHash[:])
+			// Берём первые N символов
+			hash = hashStr[:hashLen]
+		} else {
+			if typeMaskingInfo == Email && len(runes) > 0 {
+				tmpHash := md5.Sum([]byte(value))
+				hash = hex.EncodeToString(tmpHash[:])[:len(runes)]
+			} else if typeMaskingInfo == Phone {
+				tmpHash := sha256.Sum256([]byte(value))
+				tmpHash2 := hex.EncodeToString(tmpHash[:])
+
+				// Получаем только цифры для хеширования
+				digits := regexp.MustCompile(`\d`).FindAllString(tmpHash2, -1)
+				hash = strings.Join(digits, "")
+			}
+		}
+
+		maskRunes = []rune(hash)
+	}
+
+	// Применение маски
+	if typeMaskingInfo == Email && strings.HasPrefix(maskValue, "hash:") {
+		var firstSymbols []rune
+		if len(runes) >= positions[0] {
+			firstSymbols = runes[:positions[0]]
+		} else {
+			firstSymbols = runes // если меньше 2 элементов, берем все что есть
+		}
+		runes = firstSymbols
+		runes = append(runes, maskRunes...)
+	} else {
+		for i, pos := range positions {
+			if pos >= 0 && pos < len(runes) && i < len(maskRunes) {
+				runes[pos] = maskRunes[i]
+			}
+		}
+	}
+
+	return string(runes)
+}
+
+func maskEmailWithRules(email string, cache *Cache) string {
 	if _, ok := EmailWhiteList[email]; ok {
 		return email
 	}
@@ -156,17 +286,26 @@ func maskEmailLightHash(email string, cache *Cache) string {
 	localPart := parts[0]
 	domainPart := parts[1]
 
-	if len(localPart) == 0 {
-		return email
+	// Обработка email по правилам
+	target := AppConfig.Masking.Email.Target
+	value := AppConfig.Masking.Email.Value
+
+	// Определяем какие части нужно маскировать
+	var positions []int
+	typeMaskingInfo := Email
+	if strings.Contains(target, "username:") {
+		positions = parseTargetPositions(strings.TrimPrefix(target, "username:"), len(localPart))
+		localPart = applyMasking(localPart, positions, value, typeMaskingInfo)
+	} else if strings.Contains(target, "domain:") {
+		positions = parseTargetPositions(strings.TrimPrefix(target, "domain:"), len(domainPart))
+		domainPart = applyMasking(domainPart, positions, value, typeMaskingInfo)
+	} else {
+		positions = parseTargetPositions(target, len(email))
+		masked := applyMasking(email, positions, value, typeMaskingInfo)
+		return masked
 	}
 
-	firstChar := string(localPart[0])
-	rest := localPart[1:]
-
-	hash := md5.Sum([]byte(rest))
-	hashedRest := hex.EncodeToString(hash[:])[:6]
-
-	masked := firstChar + hashedRest + "@" + domainPart
+	masked := localPart + "@" + domainPart
 
 	if cache != nil {
 		cache.Lock()
@@ -177,8 +316,7 @@ func maskEmailLightHash(email string, cache *Cache) string {
 	return masked
 }
 
-func maskPhoneLightMask(phone string, cache *Cache) string {
-	// Проверяем белый список
+func maskPhoneWithRules(phone string, cache *Cache) string {
 	if _, ok := PhoneWhiteList[phone]; ok {
 		return phone
 	}
@@ -192,37 +330,24 @@ func maskPhoneLightMask(phone string, cache *Cache) string {
 		cache.RUnlock()
 	}
 
+	// Обработка телефона по правилам
+	target := AppConfig.Masking.Phone.Target
+	value := AppConfig.Masking.Phone.Value
+
+	// Получаем только цифры для хеширования
 	digits := regexp.MustCompile(`\d`).FindAllString(phone, -1)
-	if len(digits) < 10 {
-		return phone
-	}
+	digitStr := strings.Join(digits, "")
 
-	hash := sha256.Sum256([]byte(phone))
-	hashStr := hex.EncodeToString(hash[:])
+	positions := parseTargetPositions(target, len(digitStr))
+	maskedDigits := applyMasking(digitStr, positions, value, Phone)
 
-	hashDigits := make([]string, 0)
-	for _, c := range hashStr {
-		if c >= '0' && c <= '9' {
-			hashDigits = append(hashDigits, string(c))
-			if len(hashDigits) == 6 {
-				break
-			}
-		}
-	}
-
-	positions := []int{1, 2, 4, 5, 7, 9}
-	for i, pos := range positions {
-		if pos < len(digits) && i < len(hashDigits) {
-			digits[pos] = hashDigits[i]
-		}
-	}
-
+	// Восстанавливаем оригинальный формат с заменёнными цифрами
 	var result strings.Builder
 	digitIndex := 0
 	for _, c := range phone {
 		if c >= '0' && c <= '9' {
-			if digitIndex < len(digits) {
-				result.WriteString(digits[digitIndex])
+			if digitIndex < len(maskedDigits) {
+				result.WriteByte(maskedDigits[digitIndex])
 				digitIndex++
 			}
 		} else {
@@ -252,12 +377,12 @@ func processLine(line string, config MaskConfig, cache *Cache) string {
 
 	if config.emailAlgorithm == "light-hash" {
 		line = EmailRegex.ReplaceAllStringFunc(line, func(email string) string {
-			return maskEmailLightHash(email, cache)
+			return maskEmailWithRules(email, cache)
 		})
 	}
 	if config.phoneAlgorithm == "light-mask" {
 		line = PhoneRegex.ReplaceAllStringFunc(line, func(phone string) string {
-			return maskPhoneLightMask(phone, cache)
+			return maskPhoneWithRules(phone, cache)
 		})
 	}
 	return line

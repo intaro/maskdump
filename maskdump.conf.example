@@ -1,10 +1,20 @@
 {
   "cache_path": "/path/to/custom_cache.json",
   "email_regex": "\\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\\b",
-  "phone_regex": "\\b(?:\\+7|7|8)(?:\\s?\\(?\\d{3}\\)?\\s?\\d{3}[\\s-]?\\d{2}[\\s-]?\\d{2}|\\d{10})\\b",
+  "phone_regex": "\\b(?:\\+7|7|8)(?:[\\s-]?\\(?\\d{3}\\)?[\\s-]?\\d{3}[\\s-]?\\d{2}[\\s-]?\\d{2}|\\d{10})\\b",
   "email_white_list": "/path/to/white_list_email.txt",
   "phone_white_list": "/path/to/white_list_phone.txt",
   "memory_limit_mb": 1024,
   "cache_flush_count": 1000,
-  "skip_insert_into_table_list": "/path/to/skip_table_list.txt"
+  "skip_insert_into_table_list": "/path/to/skip_table_list.txt",
+  "masking": {
+    "email": {
+      "target": "username:2-",
+      "value": "hash:6"
+    },
+    "phone": {
+      "target": "2,3,5,6,8,10",
+      "value": "hash"
+    }
+  }
 }

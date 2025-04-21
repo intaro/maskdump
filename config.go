@@ -19,15 +19,26 @@ const (
 	defaultCacheFlushCount = 10000
 )
 
+type MaskingRule struct {
+	Target string `json:"target"`
+	Value  string `json:"value"`
+}
+
+type MaskingConfig struct {
+	Email MaskingRule `json:"email"`
+	Phone MaskingRule `json:"phone"`
+}
+
 type Config struct {
-	CachePath               string `json:"cache_path"`
-	EmailRegex              string `json:"email_regex"`
-	PhoneRegex              string `json:"phone_regex"`
-	EmailWhiteList          string `json:"email_white_list"`
-	PhoneWhiteList          string `json:"phone_white_list"`
-	MemoryLimitMB           int    `json:"memory_limit_mb"`
-	CacheFlushCount         int    `json:"cache_flush_count"`
-	SkipInsertIntoTableList string `json:"skip_insert_into_table_list"`
+	CachePath               string        `json:"cache_path"`
+	EmailRegex              string        `json:"email_regex"`
+	PhoneRegex              string        `json:"phone_regex"`
+	EmailWhiteList          string        `json:"email_white_list"`
+	PhoneWhiteList          string        `json:"phone_white_list"`
+	MemoryLimitMB           int           `json:"memory_limit_mb"`
+	CacheFlushCount         int           `json:"cache_flush_count"`
+	SkipInsertIntoTableList string        `json:"skip_insert_into_table_list"`
+	Masking                 MaskingConfig `json:"masking"`
 }
 
 func LoadWhiteList(path string) (map[string]struct{}, error) {
@@ -97,6 +108,16 @@ func LoadConfig(configPath string) error {
 		MemoryLimitMB:           defaultMemoryLimitMB,
 		CacheFlushCount:         defaultCacheFlushCount,
 		SkipInsertIntoTableList: "",
+		Masking: MaskingConfig{
+			Email: MaskingRule{
+				Target: "username:2-",
+				Value:  "hash:6",
+			},
+			Phone: MaskingRule{
+				Target: "2,3,5,6,8,10",
+				Value:  "hash",
+			},
+		},
 	}
 
 	// Apply default values
@@ -146,6 +167,18 @@ func LoadConfig(configPath string) error {
 	}
 	if fileConfig.SkipInsertIntoTableList != "" {
 		AppConfig.SkipInsertIntoTableList = fileConfig.SkipInsertIntoTableList
+	}
+	if fileConfig.Masking.Email.Target != "" {
+		AppConfig.Masking.Email.Target = fileConfig.Masking.Email.Target
+	}
+	if fileConfig.Masking.Email.Value != "" {
+		AppConfig.Masking.Email.Value = fileConfig.Masking.Email.Value
+	}
+	if fileConfig.Masking.Phone.Target != "" {
+		AppConfig.Masking.Phone.Target = fileConfig.Masking.Phone.Target
+	}
+	if fileConfig.Masking.Phone.Value != "" {
+		AppConfig.Masking.Phone.Value = fileConfig.Masking.Phone.Value
 	}
 
 	// Load white lists
