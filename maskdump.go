@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"os"
 	"regexp"
 	"runtime"
@@ -215,7 +214,7 @@ func applyMasking(value string, positions []int, maskValue string, typeMaskingIn
 		}
 	} else if strings.HasPrefix(maskValue, "hash") {
 		hashParts := strings.Split(maskValue, ":")
-		hashLen := 6 // по умолчанию
+		hashLen := 16 // по умолчанию
 		if len(hashParts) > 1 {
 			hashLen, _ = strconv.Atoi(hashParts[1])
 		}
@@ -244,24 +243,29 @@ func applyMasking(value string, positions []int, maskValue string, typeMaskingIn
 	}
 
 	// Применение маски
-	if typeMaskingInfo == Email && strings.HasPrefix(maskValue, "hash:") {
-		var firstSymbols []rune
-		if len(runes) >= positions[0] {
-			firstSymbols = runes[:positions[0]]
-		} else {
-			firstSymbols = runes // если меньше 2 элементов, берем все что есть
-		}
-		runes = firstSymbols
-		runes = append(runes, maskRunes...)
+	result := ""
+	if isContinuousSequence(positions) && typeMaskingInfo == Email && strings.HasPrefix(maskValue, "hash:") {
+		result = replacePositions(value, positions, hash)
+		//if 0 == positions[0] {
+		//	var firstSymbols []rune
+		//	if len(runes) >= positions[0] {
+		//		firstSymbols = runes[:positions[0]]
+		//	} else {
+		//		firstSymbols = runes // если меньше 2 элементов, берем все что есть
+		//	}
+		//	runes = firstSymbols
+		//	runes = append(runes, maskRunes...)
+		//}
 	} else {
 		for i, pos := range positions {
 			if pos >= 0 && pos < len(runes) && i < len(maskRunes) {
 				runes[pos] = maskRunes[i]
 			}
 		}
+		result = string(runes)
 	}
 
-	return string(runes)
+	return result
 }
 
 func maskEmailWithRules(email string, cache *Cache) string {
@@ -366,6 +370,64 @@ func maskPhoneWithRules(phone string, cache *Cache) string {
 	return masked
 }
 
+func isContinuousSequence(positions []int) bool {
+	if len(positions) <= 1 {
+		// Для 0 или 1 элемента считаем последовательность непрерывной
+		return true
+	}
+
+	// Проверяем, что все числа идут последовательно
+	for i := 1; i < len(positions); i++ {
+		if positions[i] != positions[i-1]+1 {
+			return false
+		}
+	}
+
+	return true
+}
+
+func replacePositions(value string, positions []int, hash string) string {
+	if len(positions) == 0 {
+		return value
+	}
+
+	// Преобразуем строку в руны для корректной работы с Unicode
+	runes := []rune(value)
+	var result []rune
+
+	prev := 0
+	for _, pos := range positions {
+		if pos < 0 || pos >= len(runes) {
+			continue // Пропускаем недопустимые индексы
+		}
+
+		// Добавляем часть строки до текущей позиции
+		result = append(result, runes[prev:pos]...)
+
+		// Обновляем предыдущую позицию (пропускаем удаляемый символ)
+		prev = pos + 1
+	}
+
+	// Добавляем оставшуюся часть строки
+	result = append(result, runes[prev:]...)
+
+	// Вставляем строку замены перед первым удаленным символом
+	insertPos := positions[0]
+	if insertPos < 0 {
+		insertPos = 0
+	} else if insertPos > len(runes) {
+		insertPos = len(runes)
+	}
+
+	// Собираем финальную строку
+	final := make([]rune, 0, len(result)+6)
+	final = append(final, result[:insertPos]...)
+	final = append(final, []rune(hash)...)
+	final = append(final, result[insertPos:]...)
+
+	return string(final)
+}
+
 func processLine(line string, config MaskConfig, cache *Cache) string {
 	if len(SkipTableList) > 0 {
 		for table := range SkipTableList {
@@ -414,20 +476,22 @@ func main() {
 	memoryLimit = int64(AppConfig.MemoryLimitMB) * 1024 * 1024
 	go trackMemoryUsage()
 
-	reader := bufio.NewReaderSize(os.Stdin, defaultMaxBufferSize)
+	//reader := bufio.NewReaderSize(os.Stdin, defaultMaxBufferSize)
 	writer := bufio.NewWriterSize(os.Stdout, defaultMaxBufferSize)
 	defer writer.Flush()
 
 	lineCount := 0
 	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
-			os.Exit(1)
-		}
+		line := "test@example.com"
+		var err error
+		//line, err := reader.ReadString('\n')
+		//if err != nil {
+		//	if err == io.EOF {
+		//		break
+		//	}
+		//	fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+		//	os.Exit(1)
+		//}
 
 		maskedLine := processLine(line, config, cache)
 		if strings.TrimSpace(maskedLine) != "" {
