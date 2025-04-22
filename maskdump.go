@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"runtime"
@@ -136,15 +137,13 @@ func validateAlgorithms(config MaskConfig) error {
 func parseTargetPositions(target string, length int) []int {
 	var positions []int
 
-	// Обработка модификаторов для email
+	// Processing modifiers for email
 	parts := strings.Split(target, ":")
-	//modifier := ""
 	if len(parts) > 1 {
-		//modifier = parts[0]
 		target = parts[1]
 	}
 
-	// Обработка диапазонов
+	// Range processing
 	if strings.Contains(target, "-") {
 		rangeParts := strings.Split(target, "-")
 		start := 1
@@ -158,12 +157,12 @@ func parseTargetPositions(target string, length int) []int {
 		}
 
 		for i := start; i <= end && i <= length; i++ {
-			positions = append(positions, i-1) // переводим в 0-based
+			positions = append(positions, i-1) // 0-based
 		}
 		return positions
 	}
 
-	// Обработка тильды
+	// Tilde processing
 	if strings.Contains(target, "~") {
 		tildeParts := strings.Split(target, "~")
 		keepStart := 0
@@ -186,7 +185,7 @@ func parseTargetPositions(target string, length int) []int {
 		return positions
 	}
 
-	// Обработка списка позиций
+	// Item list processing
 	posParts := strings.Split(target, ",")
 	for _, p := range posParts {
 		pos, _ := strconv.Atoi(p)
@@ -206,7 +205,7 @@ func applyMasking(value string, positions []int, maskValue string, typeMaskingIn
 	runes := []rune(value)
 	maskRunes := []rune{}
 
-	// Подготовка маскирующих символов
+	// Preparing masking symbols
 	var hash string
 	if maskValue == "*" {
 		for i := 0; i < len(positions); i++ {
@@ -214,16 +213,16 @@ func applyMasking(value string, positions []int, maskValue string, typeMaskingIn
 		}
 	} else if strings.HasPrefix(maskValue, "hash") {
 		hashParts := strings.Split(maskValue, ":")
-		hashLen := 16 // по умолчанию
+		hashLen := 16 // by default
 		if len(hashParts) > 1 {
 			hashLen, _ = strconv.Atoi(hashParts[1])
 		}
 
 		if strings.HasPrefix(maskValue, "hash:") {
 			tmpHash := md5.Sum([]byte(value))
-			// Конвертируем в hex строку
+			// Convert to hex string
 			hashStr := hex.EncodeToString(tmpHash[:])
-			// Берём первые N символов
+			// Take the first N characters
 			hash = hashStr[:hashLen]
 		} else {
 			if typeMaskingInfo == Email && len(runes) > 0 {
@@ -233,7 +232,7 @@ func applyMasking(value string, positions []int, maskValue string, typeMaskingIn
 				tmpHash := sha256.Sum256([]byte(value))
 				tmpHash2 := hex.EncodeToString(tmpHash[:])
 
-				// Получаем только цифры для хеширования
+				// We get only the digits for hashing
 				digits := regexp.MustCompile(`\d`).FindAllString(tmpHash2, -1)
 				hash = strings.Join(digits, "")
 			}
@@ -242,20 +241,10 @@ func applyMasking(value string, positions []int, maskValue string, typeMaskingIn
 		maskRunes = []rune(hash)
 	}
 
-	// Применение маски
+	// Application of mask
 	result := ""
 	if isContinuousSequence(positions) && typeMaskingInfo == Email && strings.HasPrefix(maskValue, "hash:") {
 		result = replacePositions(value, positions, hash)
-		//if 0 == positions[0] {
-		//	var firstSymbols []rune
-		//	if len(runes) >= positions[0] {
-		//		firstSymbols = runes[:positions[0]]
-		//	} else {
-		//		firstSymbols = runes // если меньше 2 элементов, берем все что есть
-		//	}
-		//	runes = firstSymbols
-		//	runes = append(runes, maskRunes...)
-		//}
 	} else {
 		for i, pos := range positions {
 			if pos >= 0 && pos < len(runes) && i < len(maskRunes) {
@@ -290,11 +279,11 @@ func maskEmailWithRules(email string, cache *Cache) string {
 	localPart := parts[0]
 	domainPart := parts[1]
 
-	// Обработка email по правилам
+	// Handling email by rule
 	target := AppConfig.Masking.Email.Target
 	value := AppConfig.Masking.Email.Value
 
-	// Определяем какие части нужно маскировать
+	// Determine which parts need to be masked
 	var positions []int
 	typeMaskingInfo := Email
 	if strings.Contains(target, "username:") {
@@ -334,18 +323,18 @@ func maskPhoneWithRules(phone string, cache *Cache) string {
 		cache.RUnlock()
 	}
 
-	// Обработка телефона по правилам
+	// Handling phones according to the rules
 	target := AppConfig.Masking.Phone.Target
 	value := AppConfig.Masking.Phone.Value
 
-	// Получаем только цифры для хеширования
+	// We get only the digits for hashing
 	digits := regexp.MustCompile(`\d`).FindAllString(phone, -1)
 	digitStr := strings.Join(digits, "")
 
 	positions := parseTargetPositions(target, len(digitStr))
 	maskedDigits := applyMasking(digitStr, positions, value, Phone)
 
-	// Восстанавливаем оригинальный формат с заменёнными цифрами
+	// Restore the original format with replaced digits
 	var result strings.Builder
 	digitIndex := 0
 	for _, c := range phone {
@@ -370,13 +359,15 @@ func maskPhoneWithRules(phone string, cache *Cache) string {
 	return masked
 }
 
+// The function checks the character indices to be replaced.
+// It concludes whether all listed indices are a continuous sequence.
 func isContinuousSequence(positions []int) bool {
 	if len(positions) <= 1 {
-		// Для 0 или 1 элемента считаем последовательность непрерывной
+		// For 0 or 1 element, we consider the sequence to be continuous
 		return true
 	}
 
-	// Проверяем, что все числа идут последовательно
+	// Check that all numbers are consecutive
 	for i := 1; i < len(positions); i++ {
 		if positions[i] != positions[i-1]+1 {
 			return false
@@ -391,27 +382,27 @@ func replacePositions(value string, positions []int, hash string) string {
 		return value
 	}
 
-	// Преобразуем строку в руны для корректной работы с Unicode
+	// Convert string to runes for correct work with Unicode
 	runes := []rune(value)
 	var result []rune
 
 	prev := 0
 	for _, pos := range positions {
 		if pos < 0 || pos >= len(runes) {
-			continue // Пропускаем недопустимые индексы
+			continue // Skip invalid indexes
 		}
 
-		// Добавляем часть строки до текущей позиции
+		// Add a part of the string to the current position
 		result = append(result, runes[prev:pos]...)
 
-		// Обновляем предыдущую позицию (пропускаем удаляемый символ)
+		// Update the previous position (skip the character to be deleted)
 		prev = pos + 1
 	}
 
-	// Добавляем оставшуюся часть строки
+	// Add the rest of the string
 	result = append(result, runes[prev:]...)
 
-	// Вставляем строку замены перед первым удаленным символом
+	// Insert the replacement string before the first deleted character
 	insertPos := positions[0]
 	if insertPos < 0 {
 		insertPos = 0
@@ -419,7 +410,7 @@ func replacePositions(value string, positions []int, hash string) string {
 		insertPos = len(runes)
 	}
 
-	// Собираем финальную строку
+	// Putting together the final line
 	final := make([]rune, 0, len(result)+6)
 	final = append(final, result[:insertPos]...)
 	final = append(final, []rune(hash)...)
@@ -428,6 +419,8 @@ func replacePositions(value string, positions []int, hash string) string {
 	return string(final)
 }
 
+// It's a basic function. It processes incoming strings.
+// It starts the necessary masking functions according to the program settings.
 func processLine(line string, config MaskConfig, cache *Cache) string {
 	if len(SkipTableList) > 0 {
 		for table := range SkipTableList {
@@ -450,6 +443,9 @@ func processLine(line string, config MaskConfig, cache *Cache) string {
 	return line
 }
 
+// The function prepares the required values of the setting variables.
+// Keeps track of memory and cache. Reads the input buffer, starts processing of incoming strings.
+// Outputs to the output buffer the result after masking and ignoring the specified tables.
 func main() {
 	config := parseFlags()
 	if err := validateAlgorithms(config); err != nil {
@@ -476,22 +472,20 @@ func main() {
 	memoryLimit = int64(AppConfig.MemoryLimitMB) * 1024 * 1024
 	go trackMemoryUsage()
 
-	//reader := bufio.NewReaderSize(os.Stdin, defaultMaxBufferSize)
+	reader := bufio.NewReaderSize(os.Stdin, defaultMaxBufferSize)
 	writer := bufio.NewWriterSize(os.Stdout, defaultMaxBufferSize)
 	defer writer.Flush()
 
 	lineCount := 0
 	for {
-		line := "test@example.com"
-		var err error
-		//line, err := reader.ReadString('\n')
-		//if err != nil {
-		//	if err == io.EOF {
-		//		break
-		//	}
-		//	fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
-		//	os.Exit(1)
-		//}
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+			os.Exit(1)
+		}
 
 		maskedLine := processLine(line, config, cache)
 		if strings.TrimSpace(maskedLine) != "" {
