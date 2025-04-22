@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -1003,6 +1004,206 @@ func TestMaskEmailWithRules(t *testing.T) {
 
 	if maskedEmail55 != "te*************m" {
 		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email55, target55, value55, maskedEmail55)
+	}
+}
+
+func TestMaskPhoneWithRules(t *testing.T) {
+	testCases := []struct {
+		phone    string
+		target   string
+		value    string
+		expected string
+	}{
+		// +7 (900) 111-22-33
+		{phone: "+7 (900) 111-22-33", target: "2-6", value: "hash", expected: "+7 (916) 571-22-33"},
+		{phone: "+7 (900) 111-22-33", target: "2-6", value: "*", expected: "+7 (***) **1-22-33"},
+		{phone: "+7 (900) 111-22-33", target: "2-", value: "hash", expected: "+7 (916) 572-63-35"},
+		{phone: "+7 (900) 111-22-33", target: "2-", value: "*", expected: "+7 (***) ***-**-**"},
+		{phone: "+7 (900) 111-22-33", target: "-6", value: "hash", expected: "+9 (165) 721-22-33"},
+		{phone: "+7 (900) 111-22-33", target: "-6", value: "*", expected: "+* (***) **1-22-33"},
+		{phone: "+7 (900) 111-22-33", target: "2~2", value: "hash", expected: "+7 (991) 657-26-33"},
+		{phone: "+7 (900) 111-22-33", target: "2~2", value: "*", expected: "+7 (9**) ***-**-33"},
+		{phone: "+7 (900) 111-22-33", target: "2~", value: "hash", expected: "+7 (991) 657-26-33"},
+		{phone: "+7 (900) 111-22-33", target: "2~", value: "*", expected: "+7 (9**) ***-**-**"},
+		{phone: "+7 (900) 111-22-33", target: "~3", value: "hash", expected: "+9 (165) 726-32-33"},
+		{phone: "+7 (900) 111-22-33", target: "~3", value: "*", expected: "+* (***) ***-*2-33"},
+		{phone: "+7 (900) 111-22-33", target: "1,2,3", value: "hash", expected: "+9 (160) 111-22-33"},
+		{phone: "+7 (900) 111-22-33", target: "1,2,3", value: "*", expected: "+* (**0) 111-22-33"},
+		{phone: "+7 (900) 111-22-33", target: "1,3,5,7,9", value: "hash", expected: "+9 (910) 615-27-33"},
+		{phone: "+7 (900) 111-22-33", target: "1,3,5,7,9", value: "*", expected: "+* (9*0) *1*-2*-33"},
+
+		// +79001112233
+		{phone: "+79001112233", target: "2-6", value: "hash", expected: "+79165712233"},
+		{phone: "+79001112233", target: "2-6", value: "*", expected: "+7*****12233"},
+		{phone: "+79001112233", target: "2-", value: "hash", expected: "+79165726335"},
+		{phone: "+79001112233", target: "2-", value: "*", expected: "+7**********"},
+		{phone: "+79001112233", target: "-6", value: "hash", expected: "+91657212233"},
+		{phone: "+79001112233", target: "-6", value: "*", expected: "+******12233"},
+		{phone: "+79001112233", target: "2~2", value: "hash", expected: "+79916572633"},
+		{phone: "+79001112233", target: "2~2", value: "*", expected: "+79*******33"},
+		{phone: "+79001112233", target: "2~", value: "hash", expected: "+79916572633"},
+		{phone: "+79001112233", target: "2~", value: "*", expected: "+79*********"},
+		{phone: "+79001112233", target: "~3", value: "hash", expected: "+91657263233"},
+		{phone: "+79001112233", target: "~3", value: "*", expected: "+********233"},
+		{phone: "+79001112233", target: "1,2,3", value: "hash", expected: "+91601112233"},
+		{phone: "+79001112233", target: "1,2,3", value: "*", expected: "+***01112233"},
+		{phone: "+79001112233", target: "1,3,5,7,9", value: "hash", expected: "+99106152733"},
+		{phone: "+79001112233", target: "1,3,5,7,9", value: "*", expected: "+*9*0*1*2*33"},
+
+		// 79001112233
+		{phone: "79001112233", target: "2-6", value: "hash", expected: "79165712233"},
+		{phone: "79001112233", target: "2-6", value: "*", expected: "7*****12233"},
+		{phone: "79001112233", target: "2-", value: "hash", expected: "79165726335"},
+		{phone: "79001112233", target: "2-", value: "*", expected: "7**********"},
+		{phone: "79001112233", target: "-6", value: "hash", expected: "91657212233"},
+		{phone: "79001112233", target: "-6", value: "*", expected: "******12233"},
+		{phone: "79001112233", target: "2~2", value: "hash", expected: "79916572633"},
+		{phone: "79001112233", target: "2~2", value: "*", expected: "79*******33"},
+		{phone: "79001112233", target: "2~", value: "hash", expected: "79916572633"},
+		{phone: "79001112233", target: "2~", value: "*", expected: "79*********"},
+		{phone: "79001112233", target: "~3", value: "hash", expected: "91657263233"},
+		{phone: "79001112233", target: "~3", value: "*", expected: "********233"},
+		{phone: "79001112233", target: "1,2,3", value: "hash", expected: "91601112233"},
+		{phone: "79001112233", target: "1,2,3", value: "*", expected: "***01112233"},
+		{phone: "79001112233", target: "1,3,5,7,9", value: "hash", expected: "99106152733"},
+		{phone: "79001112233", target: "1,3,5,7,9", value: "*", expected: "*9*0*1*2*33"},
+
+		// 89001112233
+		{phone: "89001112233", target: "2-6", value: "hash", expected: "89242412233"},
+		{phone: "89001112233", target: "2-6", value: "*", expected: "8*****12233"},
+		{phone: "89001112233", target: "2-", value: "hash", expected: "89242485674"},
+		{phone: "89001112233", target: "2-", value: "*", expected: "8**********"},
+		{phone: "89001112233", target: "-6", value: "hash", expected: "92424812233"},
+		{phone: "89001112233", target: "-6", value: "*", expected: "******12233"},
+		{phone: "89001112233", target: "2~2", value: "hash", expected: "89924248533"},
+		{phone: "89001112233", target: "2~2", value: "*", expected: "89*******33"},
+		{phone: "89001112233", target: "2~", value: "hash", expected: "89924248567"},
+		{phone: "89001112233", target: "2~", value: "*", expected: "89*********"},
+		{phone: "89001112233", target: "~3", value: "hash", expected: "92424856233"},
+		{phone: "89001112233", target: "~3", value: "*", expected: "********233"},
+		{phone: "89001112233", target: "1,2,3", value: "hash", expected: "92401112233"},
+		{phone: "89001112233", target: "1,2,3", value: "*", expected: "***01112233"},
+		{phone: "89001112233", target: "1,3,5,7,9", value: "hash", expected: "99204122433"},
+		{phone: "89001112233", target: "1,3,5,7,9", value: "*", expected: "*9*0*1*2*33"},
+
+		// 8 (900) 111-22-33
+		{phone: "8 (900) 111-22-33", target: "2-6", value: "hash", expected: "8 (924) 241-22-33"},
+		{phone: "8 (900) 111-22-33", target: "2-6", value: "*", expected: "8 (***) **1-22-33"},
+		{phone: "8 (900) 111-22-33", target: "2-", value: "hash", expected: "8 (924) 248-56-74"},
+		{phone: "8 (900) 111-22-33", target: "2-", value: "*", expected: "8 (***) ***-**-**"},
+		{phone: "8 (900) 111-22-33", target: "-6", value: "hash", expected: "9 (242) 481-22-33"},
+		{phone: "8 (900) 111-22-33", target: "-6", value: "*", expected: "* (***) **1-22-33"},
+		{phone: "8 (900) 111-22-33", target: "2~2", value: "hash", expected: "8 (992) 424-85-33"},
+		{phone: "8 (900) 111-22-33", target: "2~2", value: "*", expected: "8 (9**) ***-**-33"},
+		{phone: "8 (900) 111-22-33", target: "2~", value: "hash", expected: "8 (992) 424-85-67"},
+		{phone: "8 (900) 111-22-33", target: "2~", value: "*", expected: "8 (9**) ***-**-**"},
+		{phone: "8 (900) 111-22-33", target: "~3", value: "hash", expected: "9 (242) 485-62-33"},
+		{phone: "8 (900) 111-22-33", target: "~3", value: "*", expected: "* (***) ***-*2-33"},
+		{phone: "8 (900) 111-22-33", target: "1,2,3", value: "hash", expected: "9 (240) 111-22-33"},
+		{phone: "8 (900) 111-22-33", target: "1,2,3", value: "*", expected: "* (**0) 111-22-33"},
+		{phone: "8 (900) 111-22-33", target: "1,3,5,7,9", value: "hash", expected: "9 (920) 412-24-33"},
+		{phone: "8 (900) 111-22-33", target: "1,3,5,7,9", value: "*", expected: "* (9*0) *1*-2*-33"},
+
+		// 8-900-111-22-33
+		{phone: "8-900-111-22-33", target: "2-6", value: "hash", expected: "8-924-241-22-33"},
+		{phone: "8-900-111-22-33", target: "2-6", value: "*", expected: "8-***-**1-22-33"},
+		{phone: "8-900-111-22-33", target: "2-", value: "hash", expected: "8-924-248-56-74"},
+		{phone: "8-900-111-22-33", target: "2-", value: "*", expected: "8-***-***-**-**"},
+		{phone: "8-900-111-22-33", target: "-6", value: "hash", expected: "9-242-481-22-33"},
+		{phone: "8-900-111-22-33", target: "-6", value: "*", expected: "*-***-**1-22-33"},
+		{phone: "8-900-111-22-33", target: "2~2", value: "hash", expected: "8-992-424-85-33"},
+		{phone: "8-900-111-22-33", target: "2~2", value: "*", expected: "8-9**-***-**-33"},
+		{phone: "8-900-111-22-33", target: "2~", value: "hash", expected: "8-992-424-85-67"},
+		{phone: "8-900-111-22-33", target: "2~", value: "*", expected: "8-9**-***-**-**"},
+		{phone: "8-900-111-22-33", target: "~3", value: "hash", expected: "9-242-485-62-33"},
+		{phone: "8-900-111-22-33", target: "~3", value: "*", expected: "*-***-***-*2-33"},
+		{phone: "8-900-111-22-33", target: "1,2,3", value: "hash", expected: "9-240-111-22-33"},
+		{phone: "8-900-111-22-33", target: "1,2,3", value: "*", expected: "*-**0-111-22-33"},
+		{phone: "8-900-111-22-33", target: "1,3,5,7,9", value: "hash", expected: "9-920-412-24-33"},
+		{phone: "8-900-111-22-33", target: "1,3,5,7,9", value: "*", expected: "*-9*0-*1*-2*-33"},
+
+		// +7(900)111-22-33
+		{phone: "+7(900)111-22-33", target: "2-6", value: "hash", expected: "+7(916)571-22-33"},
+		{phone: "+7(900)111-22-33", target: "2-6", value: "*", expected: "+7(***)**1-22-33"},
+		{phone: "+7(900)111-22-33", target: "2-", value: "hash", expected: "+7(916)572-63-35"},
+		{phone: "+7(900)111-22-33", target: "2-", value: "*", expected: "+7(***)***-**-**"},
+		{phone: "+7(900)111-22-33", target: "-6", value: "hash", expected: "+9(165)721-22-33"},
+		{phone: "+7(900)111-22-33", target: "-6", value: "*", expected: "+*(***)**1-22-33"},
+		{phone: "+7(900)111-22-33", target: "2~2", value: "hash", expected: "+7(991)657-26-33"},
+		{phone: "+7(900)111-22-33", target: "2~2", value: "*", expected: "+7(9**)***-**-33"},
+		{phone: "+7(900)111-22-33", target: "2~", value: "hash", expected: "+7(991)657-26-33"},
+		{phone: "+7(900)111-22-33", target: "2~", value: "*", expected: "+7(9**)***-**-**"},
+		{phone: "+7(900)111-22-33", target: "~3", value: "hash", expected: "+9(165)726-32-33"},
+		{phone: "+7(900)111-22-33", target: "~3", value: "*", expected: "+*(***)***-*2-33"},
+		{phone: "+7(900)111-22-33", target: "1,2,3", value: "hash", expected: "+9(160)111-22-33"},
+		{phone: "+7(900)111-22-33", target: "1,2,3", value: "*", expected: "+*(**0)111-22-33"},
+		{phone: "+7(900)111-22-33", target: "1,3,5,7,9", value: "hash", expected: "+9(910)615-27-33"},
+		{phone: "+7(900)111-22-33", target: "1,3,5,7,9", value: "*", expected: "+*(9*0)*1*-2*-33"},
+
+		// 7(900)111-22-33
+		{phone: "7(900)111-22-33", target: "2-6", value: "hash", expected: "7(916)571-22-33"},
+		{phone: "7(900)111-22-33", target: "2-6", value: "*", expected: "7(***)**1-22-33"},
+		{phone: "7(900)111-22-33", target: "2-", value: "hash", expected: "7(916)572-63-35"},
+		{phone: "7(900)111-22-33", target: "2-", value: "*", expected: "7(***)***-**-**"},
+		{phone: "7(900)111-22-33", target: "-6", value: "hash", expected: "9(165)721-22-33"},
+		{phone: "7(900)111-22-33", target: "-6", value: "*", expected: "*(***)**1-22-33"},
+		{phone: "7(900)111-22-33", target: "2~2", value: "hash", expected: "7(991)657-26-33"},
+		{phone: "7(900)111-22-33", target: "2~2", value: "*", expected: "7(9**)***-**-33"},
+		{phone: "7(900)111-22-33", target: "2~", value: "hash", expected: "7(991)657-26-33"},
+		{phone: "7(900)111-22-33", target: "2~", value: "*", expected: "7(9**)***-**-**"},
+		{phone: "7(900)111-22-33", target: "~3", value: "hash", expected: "9(165)726-32-33"},
+		{phone: "7(900)111-22-33", target: "~3", value: "*", expected: "*(***)***-*2-33"},
+		{phone: "7(900)111-22-33", target: "1,2,3", value: "hash", expected: "9(160)111-22-33"},
+		{phone: "7(900)111-22-33", target: "1,2,3", value: "*", expected: "*(**0)111-22-33"},
+		{phone: "7(900)111-22-33", target: "1,3,5,7,9", value: "hash", expected: "9(910)615-27-33"},
+		{phone: "7(900)111-22-33", target: "1,3,5,7,9", value: "*", expected: "*(9*0)*1*-2*-33"},
+
+		// 8(900)111-22-33
+		{phone: "8(900)111-22-33", target: "2-6", value: "hash", expected: "8(924)241-22-33"},
+		{phone: "8(900)111-22-33", target: "2-6", value: "*", expected: "8(***)**1-22-33"},
+		{phone: "8(900)111-22-33", target: "2-", value: "hash", expected: "8(924)248-56-74"},
+		{phone: "8(900)111-22-33", target: "2-", value: "*", expected: "8(***)***-**-**"},
+		{phone: "8(900)111-22-33", target: "-6", value: "hash", expected: "9(242)481-22-33"},
+		{phone: "8(900)111-22-33", target: "-6", value: "*", expected: "*(***)**1-22-33"},
+		{phone: "8(900)111-22-33", target: "2~2", value: "hash", expected: "8(992)424-85-33"},
+		{phone: "8(900)111-22-33", target: "2~2", value: "*", expected: "8(9**)***-**-33"},
+		{phone: "8(900)111-22-33", target: "2~", value: "hash", expected: "8(992)424-85-67"},
+		{phone: "8(900)111-22-33", target: "2~", value: "*", expected: "8(9**)***-**-**"},
+		{phone: "8(900)111-22-33", target: "~3", value: "hash", expected: "9(242)485-62-33"},
+		{phone: "8(900)111-22-33", target: "~3", value: "*", expected: "*(***)***-*2-33"},
+		{phone: "8(900)111-22-33", target: "1,2,3", value: "hash", expected: "9(240)111-22-33"},
+		{phone: "8(900)111-22-33", target: "1,2,3", value: "*", expected: "*(**0)111-22-33"},
+		{phone: "8(900)111-22-33", target: "1,3,5,7,9", value: "hash", expected: "9(920)412-24-33"},
+		{phone: "8(900)111-22-33", target: "1,3,5,7,9", value: "*", expected: "*(9*0)*1*-2*-33"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.phone+"_"+tc.target+"_"+tc.value, func(t *testing.T) {
+			digits := regexp.MustCompile(`\d`).FindAllString(tc.phone, -1)
+			digitStr := strings.Join(digits, "")
+
+			positions := parseTargetPositions(tc.target, len(digitStr))
+			maskedDigits := applyMasking(digitStr, positions, tc.value, Phone)
+
+			var result strings.Builder
+			digitIndex := 0
+			for _, c := range tc.phone {
+				if c >= '0' && c <= '9' {
+					if digitIndex < len(maskedDigits) {
+						result.WriteByte(maskedDigits[digitIndex])
+						digitIndex++
+					}
+				} else {
+					result.WriteRune(c)
+				}
+			}
+
+			masked := result.String()
+			if masked != tc.expected {
+				t.Errorf("Input: phone=%s, target=%s, value=%s:\nExpected: %s\nGet: %s",
+					tc.phone, tc.target, tc.value, tc.expected, masked)
+			}
+		})
 	}
 }
 
