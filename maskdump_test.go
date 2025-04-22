@@ -657,6 +657,353 @@ func TestMaskEmailWithRules(t *testing.T) {
 	if maskedEmail36 != "te55502f40dc8b7m" {
 		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email36, target36, value36, maskedEmail36)
 	}
+
+	// Tests for symbol *
+
+	// Example #37 target and value
+	email37 := "test@example.com"
+	target37 := "username:2-"
+	value37 := "*"
+
+	parts37 := strings.Split(email37, "@")
+	if len(parts37) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email37)
+	}
+
+	localPart37 := parts37[0]
+	domainPart37 := parts37[1]
+
+	positions37 := parseTargetPositions(strings.TrimPrefix(target37, "username:"), len(localPart37))
+	maskLocalPart37 := applyMasking(localPart37, positions37, value37, typeMaskingInfo)
+
+	maskedEmail37 := maskLocalPart37 + "@" + domainPart37
+	if maskedEmail37 != "t***@example.com" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email37, target37, value37, maskedEmail37)
+	}
+
+	// Example #38 target and value
+	email38 := "test@example.com"
+	target38 := "domain:2-"
+	value38 := "*"
+
+	parts38 := strings.Split(email38, "@")
+	if len(parts38) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email38)
+	}
+
+	localPart38 := parts38[0]
+	domainPart38 := parts38[1]
+
+	positions38 := parseTargetPositions(strings.TrimPrefix(target38, "domain:"), len(domainPart38))
+	maskDomainPart38 := applyMasking(domainPart38, positions38, value38, typeMaskingInfo)
+
+	maskedEmail38 := localPart38 + "@" + maskDomainPart38
+	if maskedEmail38 != "test@e**********" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email38, target38, value38, maskedEmail38)
+	}
+
+	// Example #3 target and value
+	email39 := "test@example.com"
+	target39 := "2-"
+	value39 := "*"
+
+	positions39 := parseTargetPositions(target39, len(email39))
+	maskedEmail39 := applyMasking(email39, positions39, value39, typeMaskingInfo)
+
+	if maskedEmail39 != "t***************" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email39, target39, value39, maskedEmail39)
+	}
+
+	// Example #40 target and value
+	email40 := "test@example.com"
+	target40 := "username:2~"
+	value40 := "*"
+
+	parts40 := strings.Split(email40, "@")
+	if len(parts40) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email40)
+	}
+
+	localPart40 := parts40[0]
+	domainPart40 := parts40[1]
+
+	positions40 := parseTargetPositions(strings.TrimPrefix(target40, "username:"), len(localPart40))
+	maskLocalPart40 := applyMasking(localPart40, positions40, value40, typeMaskingInfo)
+
+	maskedEmail40 := maskLocalPart40 + "@" + domainPart40
+	if maskedEmail40 != "te**@example.com" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email40, target40, value40, maskedEmail40)
+	}
+
+	// Example #41 target and value
+	email41 := "test@example.com"
+	target41 := "domain:2~"
+	value41 := "*"
+
+	parts41 := strings.Split(email41, "@")
+	if len(parts41) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email41)
+	}
+
+	localPart41 := parts41[0]
+	domainPart41 := parts41[1]
+
+	positions41 := parseTargetPositions(strings.TrimPrefix(target41, "domain:"), len(domainPart41))
+	maskDomainPart41 := applyMasking(domainPart41, positions41, value41, typeMaskingInfo)
+
+	maskedEmail41 := localPart41 + "@" + maskDomainPart41
+	if maskedEmail41 != "test@ex*********" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email41, target41, value41, maskedEmail41)
+	}
+
+	// Example #42 target and value
+	email42 := "test@example.com"
+	target42 := "2~"
+	value42 := "*"
+
+	positions42 := parseTargetPositions(target42, len(email42))
+	maskedEmail42 := applyMasking(email42, positions42, value42, typeMaskingInfo)
+
+	if maskedEmail42 != "te**************" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email42, target42, value42, maskedEmail42)
+	}
+
+	// Example #43 target and value
+	email43 := "test@example.com"
+	target43 := "username:-2"
+	value43 := "*"
+
+	parts43 := strings.Split(email43, "@")
+	if len(parts43) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email43)
+	}
+
+	localPart43 := parts43[0]
+	domainPart43 := parts43[1]
+
+	positions43 := parseTargetPositions(strings.TrimPrefix(target43, "username:"), len(localPart43))
+	maskLocalPart43 := applyMasking(localPart43, positions43, value43, typeMaskingInfo)
+
+	maskedEmail43 := maskLocalPart43 + "@" + domainPart43
+	if maskedEmail43 != "**st@example.com" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email43, target43, value43, maskedEmail43)
+	}
+
+	// Example #44 target and value
+	email44 := "test@example.com"
+	target44 := "domain:-2"
+	value44 := "*"
+
+	parts44 := strings.Split(email44, "@")
+	if len(parts44) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email44)
+	}
+
+	localPart44 := parts44[0]
+	domainPart44 := parts44[1]
+
+	positions44 := parseTargetPositions(strings.TrimPrefix(target44, "domain:"), len(domainPart44))
+	maskDomainPart44 := applyMasking(domainPart44, positions44, value44, typeMaskingInfo)
+
+	maskedEmail44 := localPart44 + "@" + maskDomainPart44
+	if maskedEmail44 != "test@**ample.com" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email44, target44, value44, maskedEmail44)
+	}
+
+	// Example #45 target and value
+	email45 := "test@example.com"
+	target45 := "-2"
+	value45 := "*"
+
+	positions45 := parseTargetPositions(target45, len(email45))
+	maskedEmail45 := applyMasking(email45, positions45, value45, typeMaskingInfo)
+
+	if maskedEmail45 != "**st@example.com" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email45, target45, value45, maskedEmail45)
+	}
+
+	// Example #46 target and value
+	email46 := "test@example.com"
+	target46 := "username:~2"
+	value46 := "*"
+
+	parts46 := strings.Split(email46, "@")
+	if len(parts46) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email46)
+	}
+
+	localPart46 := parts46[0]
+	domainPart46 := parts46[1]
+
+	positions46 := parseTargetPositions(strings.TrimPrefix(target46, "username:"), len(localPart46))
+	maskLocalPart46 := applyMasking(localPart46, positions46, value46, typeMaskingInfo)
+
+	maskedEmail46 := maskLocalPart46 + "@" + domainPart46
+	if maskedEmail46 != "**st@example.com" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email46, target46, value46, maskedEmail46)
+	}
+
+	// Example #47 target and value
+	email47 := "test@example.com"
+	target47 := "domain:~2"
+	value47 := "*"
+
+	parts47 := strings.Split(email47, "@")
+	if len(parts47) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email47)
+	}
+
+	localPart47 := parts47[0]
+	domainPart47 := parts47[1]
+
+	positions47 := parseTargetPositions(strings.TrimPrefix(target47, "domain:"), len(domainPart47))
+	maskDomainPart47 := applyMasking(domainPart47, positions47, value47, typeMaskingInfo)
+
+	maskedEmail47 := localPart47 + "@" + maskDomainPart47
+	if maskedEmail47 != "test@*********om" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email47, target47, value47, maskedEmail47)
+	}
+
+	// Example #48 target and value
+	email48 := "test@example.com"
+	target48 := "~2"
+	value48 := "*"
+
+	positions48 := parseTargetPositions(target48, len(email48))
+	maskedEmail48 := applyMasking(email48, positions48, value48, typeMaskingInfo)
+
+	if maskedEmail48 != "**************om" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email48, target48, value48, maskedEmail48)
+	}
+
+	// Example #49 target and value
+	email49 := "test@example.com"
+	target49 := "username:2-5"
+	value49 := "*"
+
+	parts49 := strings.Split(email49, "@")
+	if len(parts49) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email49)
+	}
+
+	localPart49 := parts49[0]
+	domainPart49 := parts49[1]
+
+	positions49 := parseTargetPositions(strings.TrimPrefix(target49, "username:"), len(localPart49))
+	maskLocalPart49 := applyMasking(localPart49, positions49, value49, typeMaskingInfo)
+
+	maskedEmail49 := maskLocalPart49 + "@" + domainPart49
+	if maskedEmail49 != "t***@example.com" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email49, target49, value49, maskedEmail49)
+	}
+
+	// Example #50 target and value
+	email50 := "test@example.com"
+	target50 := "domain:2-5"
+	value50 := "*"
+
+	parts50 := strings.Split(email50, "@")
+	if len(parts50) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email50)
+	}
+
+	localPart50 := parts50[0]
+	domainPart50 := parts50[1]
+
+	positions50 := parseTargetPositions(strings.TrimPrefix(target50, "domain:"), len(domainPart50))
+	maskDomainPart50 := applyMasking(domainPart50, positions50, value50, typeMaskingInfo)
+
+	maskedEmail50 := localPart50 + "@" + maskDomainPart50
+	if maskedEmail50 != "test@e****le.com" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email50, target50, value50, maskedEmail50)
+	}
+
+	// Example #51 target and value
+	email51 := "test@example.com"
+	target51 := "2-5"
+	value51 := "*"
+
+	positions51 := parseTargetPositions(target51, len(email51))
+	maskedEmail51 := applyMasking(email51, positions51, value51, typeMaskingInfo)
+
+	if maskedEmail51 != "t****example.com" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email51, target51, value51, maskedEmail51)
+	}
+
+	// Example #52 target and value
+	email52 := "test@example.com"
+	target52 := "username:2-5"
+	value52 := "*"
+
+	parts52 := strings.Split(email52, "@")
+	if len(parts52) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email52)
+	}
+
+	localPart52 := parts52[0]
+	domainPart52 := parts52[1]
+
+	positions52 := parseTargetPositions(strings.TrimPrefix(target52, "username:"), len(localPart52))
+	maskLocalPart52 := applyMasking(localPart52, positions52, value52, typeMaskingInfo)
+
+	maskedEmail52 := maskLocalPart52 + "@" + domainPart52
+	if maskedEmail52 != "t***@example.com" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email52, target52, value52, maskedEmail52)
+	}
+
+	// Example #53 target and value
+	email53 := "test@example.com"
+	target53 := "username:2~1"
+	value53 := "*"
+
+	parts53 := strings.Split(email53, "@")
+	if len(parts53) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email53)
+	}
+
+	localPart53 := parts53[0]
+	domainPart53 := parts53[1]
+
+	positions53 := parseTargetPositions(strings.TrimPrefix(target53, "username:"), len(localPart53))
+	maskLocalPart53 := applyMasking(localPart53, positions53, value53, typeMaskingInfo)
+
+	maskedEmail53 := maskLocalPart53 + "@" + domainPart53
+	if maskedEmail53 != "te*t@example.com" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email53, target53, value53, maskedEmail53)
+	}
+
+	// Example #54 target and value
+	email54 := "test@example.com"
+	target54 := "domain:2~1"
+	value54 := "*"
+
+	parts54 := strings.Split(email54, "@")
+	if len(parts54) != 2 {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s", email54)
+	}
+
+	localPart54 := parts54[0]
+	domainPart54 := parts54[1]
+
+	positions54 := parseTargetPositions(strings.TrimPrefix(target54, "domain:"), len(domainPart54))
+	maskDomainPart54 := applyMasking(domainPart54, positions54, value54, typeMaskingInfo)
+
+	maskedEmail54 := localPart54 + "@" + maskDomainPart54
+	if maskedEmail54 != "test@ex********m" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email54, target54, value54, maskedEmail54)
+	}
+
+	// Example #55 target and value
+	email55 := "test@example.com"
+	target55 := "2~1"
+	value55 := "*"
+
+	positions55 := parseTargetPositions(target55, len(email55))
+	maskedEmail55 := applyMasking(email55, positions55, value55, typeMaskingInfo)
+
+	if maskedEmail55 != "te*************m" {
+		t.Errorf("maskEmailWithRules not working correctly. Input: %s, mask target: %s, mask value: %s, Output: %s", email55, target55, value55, maskedEmail55)
+	}
 }
 
 func TestValidateAlgorithms(t *testing.T) {
