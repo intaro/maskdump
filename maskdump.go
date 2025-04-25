@@ -424,7 +424,7 @@ func replacePositions(value string, positions []int, hash string) string {
 
 // It's a basic function. It processes incoming strings.
 // It starts the necessary masking functions according to the program settings.
-func processLine(line string, config MaskConfig, cache *Cache) string {
+func processLine(line string, config MaskConfig, cache *Cache, hasProcessingTables bool) string {
 	if len(SkipTableList) > 0 {
 		for table := range SkipTableList {
 			if strings.HasPrefix(line, "INSERT INTO `"+table+"`") {
@@ -433,12 +433,7 @@ func processLine(line string, config MaskConfig, cache *Cache) string {
 		}
 	}
 
-	// Проверяем, есть ли таблицы для обработки
-	hasProcessingTables := len(ProcessingTables.Tables) > 0
-	//Log(fmt.Sprintf("ProcessingTables.ProcessingTables: %v", ProcessingTables.ProcessingTables))
-
 	if hasProcessingTables {
-		Log("DEBUG! hasProcessingTables")
 		ParseTableStructure(line)
 	}
 
@@ -503,10 +498,13 @@ func main() {
 	writer := bufio.NewWriterSize(os.Stdout, defaultMaxBufferSize)
 	defer writer.Flush()
 
+	// Проверяем, есть ли таблицы для обработки
+	hasProcessingTables := len(ProcessingTables) > 0
+
 	lineCount := 0
 	for {
-		//line := "subspam@mail.ru"
-		//var err error
+		//line := "subspam@mail.ru" //DEBUG!!!
+		//var err error             //DEBUG!!!
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
@@ -516,7 +514,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		maskedLine := processLine(line, config, cache)
+		maskedLine := processLine(line, config, cache, hasProcessingTables)
 		if strings.TrimSpace(maskedLine) != "" {
 			_, err = writer.WriteString(maskedLine)
 			if err != nil {

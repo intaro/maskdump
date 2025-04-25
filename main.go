@@ -11,9 +11,9 @@ var (
 	EmailWhiteList   map[string]struct{}
 	PhoneWhiteList   map[string]struct{}
 	SkipTableList    map[string]struct{}
-	ProcessingTables ProcessingTablesConfig
+	ProcessingTables map[string]TableConfig
 	insertRegex      = regexp.MustCompile(`INSERT INTO ` + "`" + `(.+?)` + "`" + ` VALUES (.+)`)
-	tupleRegex       = regexp.MustCompile(`\(([^)]+)\)`)
+	tupleRegex       = regexp.MustCompile(`\((?:[^()'"\\]|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|\\.|\([^()]*\))*\)`)
 )
 
 type TypeMaskingInfo int

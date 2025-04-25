@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -113,7 +112,10 @@ func ProcessDumpLine(line string, config MaskConfig, cache *Cache) string {
 	valuesPart := matches[2]
 
 	// Проверяем, нужно ли обрабатывать эту таблицу
-	tableConfig, ok := ProcessingTables.Tables[tableName]
+	tableConfig, ok := ProcessingTables[tableName]
+	if !ok {
+		return line
+	}
 
 	if !ok {
 		return line // Таблица не в конфиге, пропускаем
@@ -153,14 +155,6 @@ func ProcessDumpLine(line string, config MaskConfig, cache *Cache) string {
 		}
 	}
 
-	if tableName == "b_user" {
-		Log("DEBUG! b_user")
-		LogStruct("TableConfig", tableConfig)
-		Log(fmt.Sprintf("TableInfo for %s: %+v", tableName, tableInfo))
-		Log(fmt.Sprintf("emailFields: %v", emailFields))
-		Log(fmt.Sprintf("phoneFields: %v", phoneFields))
-	}
-
 	// Обрабатываем все кортежи в строке
 	modified := false
 	modifiedValues := tupleRegex.ReplaceAllStringFunc(valuesPart, func(tuple string) string {
@@ -174,7 +168,6 @@ func ProcessDumpLine(line string, config MaskConfig, cache *Cache) string {
 			// Обрабатываем email поля
 			for pos := range emailFields {
 				if pos < len(values) && values[pos] != "" && values[pos] != "NULL" {
-					//masked := maskEmailWithRules(values[pos], cache)
 					masked := EmailRegex.ReplaceAllStringFunc(values[pos], func(email string) string {
 						return maskEmailWithRules(email, cache)
 					})
@@ -190,7 +183,6 @@ func ProcessDumpLine(line string, config MaskConfig, cache *Cache) string {
 			// Обрабатываем phone поля
 			for pos := range phoneFields {
 				if pos < len(values) && values[pos] != "" && values[pos] != "NULL" {
-					//masked := maskPhoneWithRules(values[pos], cache)
 					masked := PhoneRegex.ReplaceAllStringFunc(values[pos], func(phone string) string {
 						return maskPhoneWithRules(phone, cache)
 					})

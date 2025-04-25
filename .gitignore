@@ -1,4 +1,5 @@
 *.conf
 *.txt
+*.log
 *cache*.json
 maskdump
