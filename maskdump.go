@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"runtime/debug"
@@ -40,6 +41,8 @@ var (
 	memoryLimit     int64
 	currentMemUsage int64
 	memMutex        sync.Mutex
+	logFile         *os.File
+	logMutex        sync.Mutex
 )
 
 func trackMemoryUsage() {
@@ -430,16 +433,34 @@ func processLine(line string, config MaskConfig, cache *Cache) string {
 		}
 	}
 
+	// Проверяем, есть ли таблицы для обработки
+	hasProcessingTables := len(ProcessingTables.Tables) > 0
+	//Log(fmt.Sprintf("ProcessingTables.ProcessingTables: %v", ProcessingTables.ProcessingTables))
+
+	if hasProcessingTables {
+		Log("DEBUG! hasProcessingTables")
+		ParseTableStructure(line)
+	}
+
 	if config.emailAlgorithm == "light-hash" {
-		line = EmailRegex.ReplaceAllStringFunc(line, func(email string) string {
-			return maskEmailWithRules(email, cache)
-		})
+		if hasProcessingTables {
+			line = ProcessDumpLine(line, config, cache)
+		} else {
+			line = EmailRegex.ReplaceAllStringFunc(line, func(email string) string {
+				return maskEmailWithRules(email, cache)
+			})
+		}
 	}
 	if config.phoneAlgorithm == "light-mask" {
-		line = PhoneRegex.ReplaceAllStringFunc(line, func(phone string) string {
-			return maskPhoneWithRules(phone, cache)
-		})
+		if hasProcessingTables {
+			line = ProcessDumpLine(line, config, cache)
+		} else {
+			line = PhoneRegex.ReplaceAllStringFunc(line, func(phone string) string {
+				return maskPhoneWithRules(phone, cache)
+			})
+		}
 	}
+
 	return line
 }
 
@@ -447,6 +468,12 @@ func processLine(line string, config MaskConfig, cache *Cache) string {
 // Keeps track of memory and cache. Reads the input buffer, starts processing of incoming strings.
 // Outputs to the output buffer the result after masking and ignoring the specified tables.
 func main() {
+	// Инициализация лога
+	if err := InitLog(); err != nil {
+		fmt.Printf("Не удалось инициализировать лог: %v\n", err)
+	}
+	defer CloseLog()
+
 	config := parseFlags()
 	if err := validateAlgorithms(config); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -478,6 +505,8 @@ func main() {
 
 	lineCount := 0
 	for {
+		//line := "subspam@mail.ru"
+		//var err error
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
@@ -509,4 +538,75 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Cache save warning: %v\n", err)
 		}
 	}
+}
+
+// InitLog инициализирует файл лога
+func InitLog() error {
+	logMutex.Lock()
+	defer logMutex.Unlock()
+
+	if logFile != nil {
+		return nil // Уже инициализирован
+	}
+
+	// Получаем путь к директории с исполняемым файлом
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("не удалось получить путь к исполняемому файлу: %v", err)
+	}
+
+	logPath := filepath.Join(filepath.Dir(exePath), "debug.log")
+
+	// Открываем файл для записи (создаем если не существует, добавляем в конец)
+	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("не удалось открыть файл лога: %v", err)
+	}
+
+	logFile = file
+	return nil
+}
+
+// Log записывает сообщение в лог файл
+func Log(message string) {
+	logMutex.Lock()
+	defer logMutex.Unlock()
+
+	if logFile == nil {
+		// Попробуем инициализировать, если еще не сделали
+		if err := InitLog(); err != nil {
+			fmt.Printf("Ошибка инициализации лога: %v\n", err)
+			return
+		}
+	}
+
+	// Форматируем текущее время
+	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	logEntry := fmt.Sprintf("[%s] %s\n", timestamp, message)
+
+	// Записываем в файл
+	if _, err := logFile.WriteString(logEntry); err != nil {
+		fmt.Printf("Ошибка записи в лог: %v\n", err)
+	}
+}
+
+// CloseLog закрывает файл лога
+func CloseLog() {
+	logMutex.Lock()
+	defer logMutex.Unlock()
+
+	if logFile != nil {
+		logFile.Close()
+		logFile = nil
+	}
+}
+
+// LogStruct логирует структуру в формате JSON
+func LogStruct(label string, v interface{}) {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		Log(fmt.Sprintf("%s: [ошибка сериализации: %v]", label, err))
+		return
+	}
+	Log(fmt.Sprintf("%s: %s", label, string(data)))
 }

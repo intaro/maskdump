@@ -29,6 +29,14 @@ type MaskingConfig struct {
 	Phone MaskingRule `json:"phone"`
 }
 
+// ProcessingTablesConfig представляет структуру конфигурации таблиц для обработки
+type ProcessingTablesConfig struct {
+	Tables map[string]struct {
+		Email []string `json:"email"`
+		Phone []string `json:"phone"`
+	} `json:"-"`
+}
+
 type Config struct {
 	CachePath               string        `json:"cache_path"`
 	EmailRegex              string        `json:"email_regex"`
@@ -39,6 +47,10 @@ type Config struct {
 	CacheFlushCount         int           `json:"cache_flush_count"`
 	SkipInsertIntoTableList string        `json:"skip_insert_into_table_list"`
 	Masking                 MaskingConfig `json:"masking"`
+	ProcessingTables        map[string]struct {
+		Email []string `json:"email"`
+		Phone []string `json:"phone"`
+	} `json:"processing_tables"`
 }
 
 func LoadWhiteList(path string) (map[string]struct{}, error) {
@@ -164,11 +176,17 @@ func LoadConfig(configPath string) error {
 		return nil // File not found - use default settings
 	}
 
+	// Перед вызовом json.Unmarshal
+	Log(fmt.Sprintf("Raw config data: %s", string(data)))
+
 	// Create temporary struct to unmarshal JSON
 	var fileConfig Config
 	if err := json.Unmarshal(data, &fileConfig); err != nil {
 		return fmt.Errorf("invalid config file: %v", err)
 	}
+
+	// После json.Unmarshal
+	Log(fmt.Sprintf("Parsed fileConfig: %+v", fileConfig))
 
 	// Override default values with non-empty values from config file
 	if fileConfig.CachePath != "" {
@@ -207,6 +225,22 @@ func LoadConfig(configPath string) error {
 	if fileConfig.Masking.Phone.Value != "" {
 		AppConfig.Masking.Phone.Value = fileConfig.Masking.Phone.Value
 	}
+	Log(fmt.Sprintf("fileConfig: %v", fileConfig))
+	// Обработка ProcessingTables
+	if len(fileConfig.ProcessingTables) > 0 {
+		AppConfig.ProcessingTables = fileConfig.ProcessingTables
+		Log(fmt.Sprintf("Loaded processing tables: %+v", fileConfig.ProcessingTables))
+	} else {
+		Log("No processing tables found in config")
+		AppConfig.ProcessingTables = make(map[string]struct {
+			Email []string `json:"email"`
+			Phone []string `json:"phone"`
+		})
+	}
+	Log(fmt.Sprintf("AppConfig.ProcessingTables: %v", AppConfig.ProcessingTables))
+
+	//TODO: Инициализация глобальной переменной ProcessingTables
+	//ProcessingTables = AppConfig.ProcessingTables
 
 	// Load white lists
 	EmailWhiteList, err = LoadWhiteList(AppConfig.EmailWhiteList)

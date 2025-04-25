@@ -5,12 +5,15 @@ import (
 )
 
 var (
-	AppConfig      Config
-	EmailRegex     *regexp.Regexp
-	PhoneRegex     *regexp.Regexp
-	EmailWhiteList map[string]struct{}
-	PhoneWhiteList map[string]struct{}
-	SkipTableList  map[string]struct{}
+	AppConfig        Config
+	EmailRegex       *regexp.Regexp
+	PhoneRegex       *regexp.Regexp
+	EmailWhiteList   map[string]struct{}
+	PhoneWhiteList   map[string]struct{}
+	SkipTableList    map[string]struct{}
+	ProcessingTables ProcessingTablesConfig
+	insertRegex      = regexp.MustCompile(`INSERT INTO ` + "`" + `(.+?)` + "`" + ` VALUES (.+)`)
+	tupleRegex       = regexp.MustCompile(`\(([^)]+)\)`)
 )
 
 type TypeMaskingInfo int
