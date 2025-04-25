@@ -129,21 +129,21 @@ support@company.org
 
 The input is a typical database dump string. The output is the same dump, but with changed email and phone numbers:
 ```sh
-$ echo "INSERT INTO users (id, email, phone) VALUES (123, 't098f6b@example.com', '+7 (904) 111-22-33'), (124, 'admin@site.org', '8-900-000-00-00');" | ./maskdump  --mask-email=light-hash --mask-phone=light-mask --no-cache
+echo "INSERT INTO users (id, email, phone) VALUES (123, 't098f6b@example.com', '+7 (904) 111-22-33'), (124, 'admin@site.org', '8-900-000-00-00');" | ./maskdump  --mask-email=light-hash --mask-phone=light-mask --no-cache
 ```
 Result:
 ```sh
-$ INSERT INTO users (id, email, phone) VALUES (123, 'ta6f5ce@example.com', '+7 (354) 101-72-53'), (124, 'a21232f@site.org', '8-700-160-90-20');
+INSERT INTO users (id, email, phone) VALUES (123, 'ta6f5ce@example.com', '+7 (354) 101-72-53'), (124, 'a21232f@site.org', '8-700-160-90-20');
 ```
 Example of working together with the mysqldump utility:
 ```sh
-$ mysqldump --user=admin -p --host=localhost db_name | ./maskdump --mask-email=light-hash --mask-phone=light-mask >/tmp/maskdata_db_name.sql
+mysqldump --user=admin -p --host=localhost db_name | ./maskdump --mask-email=light-hash --mask-phone=light-mask >/tmp/maskdata_db_name.sql
 ```
 
 ### File-Based Processing
 
 ```sh
-$ ./maskdump --mask-email=light-hash --mask-phone=light-mask <~/tmp/dump_db_name.sql >/tmp/maskdata_db_data.sql
+./maskdump --mask-email=light-hash --mask-phone=light-mask <~/tmp/dump_db_name.sql >/tmp/maskdata_db_data.sql
 ```
 
 ---
@@ -279,19 +279,19 @@ support@company.org
 
 На вход подаём строку типичного дампа базы данных. На выходе получаем этот же дамп, но с изменёнными email и телефонами:
 ```sh
-$ echo "INSERT INTO users (id, email, phone) VALUES (123, 't098f6b@example.com', '+7 (904) 111-22-33'), (124, 'admin@site.org', '8-900-000-00-00');" | ./maskdump  --mask-email=light-hash --mask-phone=light-mask --no-cache
+echo "INSERT INTO users (id, email, phone) VALUES (123, 't098f6b@example.com', '+7 (904) 111-22-33'), (124, 'admin@site.org', '8-900-000-00-00');" | ./maskdump  --mask-email=light-hash --mask-phone=light-mask --no-cache
 ```
 Результат:
 ```sh
-$ INSERT INTO users (id, email, phone) VALUES (123, 'ta6f5ce@example.com', '+7 (354) 101-72-53'), (124, 'a21232f@site.org', '8-700-160-90-20');
+INSERT INTO users (id, email, phone) VALUES (123, 'ta6f5ce@example.com', '+7 (354) 101-72-53'), (124, 'a21232f@site.org', '8-700-160-90-20');
 ```
 Пример совместной работы с утилитой mysqldump:
 ```sh
-$ mysqldump --user=admin -p --host=localhost db_name | ./maskdump --mask-email=light-hash --mask-phone=light-mask >/tmp/maskdata_db_name.sql
+mysqldump --user=admin -p --host=localhost db_name | ./maskdump --mask-email=light-hash --mask-phone=light-mask >/tmp/maskdata_db_name.sql
 ```
 
 ### Обработка отдельного файла
 
 ```sh
-$ ./maskdump --mask-email=light-hash --mask-phone=light-mask <~/tmp/dump_db_name.sql >/tmp/maskdata_db_data.sql
+./maskdump --mask-email=light-hash --mask-phone=light-mask <~/tmp/dump_db_name.sql >/tmp/maskdata_db_data.sql
 ```
