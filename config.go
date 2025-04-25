@@ -29,16 +29,23 @@ type MaskingConfig struct {
 	Phone MaskingRule `json:"phone"`
 }
 
+// Структура для хранения конфигурации таблиц
+type TableConfig struct {
+	Email []string `json:"email"`
+	Phone []string `json:"phone"`
+}
+
 type Config struct {
-	CachePath               string        `json:"cache_path"`
-	EmailRegex              string        `json:"email_regex"`
-	PhoneRegex              string        `json:"phone_regex"`
-	EmailWhiteList          string        `json:"email_white_list"`
-	PhoneWhiteList          string        `json:"phone_white_list"`
-	MemoryLimitMB           int           `json:"memory_limit_mb"`
-	CacheFlushCount         int           `json:"cache_flush_count"`
-	SkipInsertIntoTableList string        `json:"skip_insert_into_table_list"`
-	Masking                 MaskingConfig `json:"masking"`
+	CachePath               string                 `json:"cache_path"`
+	EmailRegex              string                 `json:"email_regex"`
+	PhoneRegex              string                 `json:"phone_regex"`
+	EmailWhiteList          string                 `json:"email_white_list"`
+	PhoneWhiteList          string                 `json:"phone_white_list"`
+	MemoryLimitMB           int                    `json:"memory_limit_mb"`
+	CacheFlushCount         int                    `json:"cache_flush_count"`
+	SkipInsertIntoTableList string                 `json:"skip_insert_into_table_list"`
+	Masking                 MaskingConfig          `json:"masking"`
+	ProcessingTables        map[string]TableConfig `json:"processing_tables"`
 }
 
 func LoadWhiteList(path string) (map[string]struct{}, error) {
@@ -206,6 +213,15 @@ func LoadConfig(configPath string) error {
 	}
 	if fileConfig.Masking.Phone.Value != "" {
 		AppConfig.Masking.Phone.Value = fileConfig.Masking.Phone.Value
+	}
+
+	// Обработка ProcessingTables
+	if len(fileConfig.ProcessingTables) > 0 {
+		AppConfig.ProcessingTables = fileConfig.ProcessingTables
+		ProcessingTables = fileConfig.ProcessingTables
+	} else {
+		AppConfig.ProcessingTables = make(map[string]TableConfig)
+		ProcessingTables = make(map[string]TableConfig)
 	}
 
 	// Load white lists

@@ -1175,6 +1175,24 @@ func TestMaskPhoneWithRules(t *testing.T) {
 		{phone: "8(900)111-22-33", target: "1,2,3", value: "*", expected: "*(**0)111-22-33"},
 		{phone: "8(900)111-22-33", target: "1,3,5,7,9", value: "hash", expected: "9(920)412-24-33"},
 		{phone: "8(900)111-22-33", target: "1,3,5,7,9", value: "*", expected: "*(9*0)*1*-2*-33"},
+
+		// +7 900 111-22-33
+		{phone: "+7 900 111-22-33", target: "2-6", value: "hash", expected: "+7 916 571-22-33"},
+		{phone: "+7 900 111-22-33", target: "2-6", value: "*", expected: "+7 *** **1-22-33"},
+		{phone: "+7 900 111-22-33", target: "2-", value: "hash", expected: "+7 916 572-63-35"},
+		{phone: "+7 900 111-22-33", target: "2-", value: "*", expected: "+7 *** ***-**-**"},
+		{phone: "+7 900 111-22-33", target: "-6", value: "hash", expected: "+9 165 721-22-33"},
+		{phone: "+7 900 111-22-33", target: "-6", value: "*", expected: "+* *** **1-22-33"},
+		{phone: "+7 900 111-22-33", target: "2~2", value: "hash", expected: "+7 991 657-26-33"},
+		{phone: "+7 900 111-22-33", target: "2~2", value: "*", expected: "+7 9** ***-**-33"},
+		{phone: "+7 900 111-22-33", target: "2~", value: "hash", expected: "+7 991 657-26-33"},
+		{phone: "+7 900 111-22-33", target: "2~", value: "*", expected: "+7 9** ***-**-**"},
+		{phone: "+7 900 111-22-33", target: "~3", value: "hash", expected: "+9 165 726-32-33"},
+		{phone: "+7 900 111-22-33", target: "~3", value: "*", expected: "+* *** ***-*2-33"},
+		{phone: "+7 900 111-22-33", target: "1,2,3", value: "hash", expected: "+9 160 111-22-33"},
+		{phone: "+7 900 111-22-33", target: "1,2,3", value: "*", expected: "+* **0 111-22-33"},
+		{phone: "+7 900 111-22-33", target: "1,3,5,7,9", value: "hash", expected: "+9 910 615-27-33"},
+		{phone: "+7 900 111-22-33", target: "1,3,5,7,9", value: "*", expected: "+* 9*0 *1*-2*-33"},
 	}
 
 	for _, tc := range testCases {
