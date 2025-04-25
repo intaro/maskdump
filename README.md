@@ -88,6 +88,15 @@ Create `maskdump.conf` in the same directory as the binary or specify path with 
       "target": "2,3,5,6,8,10",
       "value": "hash"
     }
+  },
+  "processing_tables": {
+    "b_user": {
+      "email": ["LOGIN", "EMAIL"],
+      "phone": ["PERSONAL_PHONE", "PERSONAL_MOBILE", "WORK_PHONE"]
+    },
+    "b_socialservices_user": {
+      "email": ["EMAIL"]
+    }
   }
 }
 ```
@@ -237,6 +246,15 @@ mysqldump dbname | ./maskdump --mask-email=light-hash --mask-phone=light-mask > 
     "phone": {
       "target": "2,3,5,6,8,10",
       "value": "hash"
+    }
+  },
+  "processing_tables": {
+    "b_user": {
+      "email": ["LOGIN", "EMAIL"],
+      "phone": ["PERSONAL_PHONE", "PERSONAL_MOBILE", "WORK_PHONE"]
+    },
+    "b_socialservices_user": {
+      "email": ["EMAIL"]
     }
   }
 }
