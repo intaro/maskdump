@@ -37,7 +37,7 @@ Settings `email_white_list` and `phone_white_list` preserve specific emails and 
 
 ### Ready-to-run binary
 
-You can download a ready-to-use `maskdump` binary from the [Releases page](/intaro/maskdump/releases)
+You can download a ready-to-use `maskdump` binary from the [Releases page](https://github.com/intaro/maskdump/releases)
 
 ### Build from source
 
@@ -200,7 +200,7 @@ MaskDump - мощный инструмент для анонимизации б�
 
 ### Готовый бинарник
 
-Можно скачать готовую программу `maskdump` со [страницы релизов](/intaro/maskdump/releases)
+Можно скачать готовую программу `maskdump` со [страницы релизов](https://github.com/intaro/maskdump/releases)
 
 ### Сборка из исходников
 
