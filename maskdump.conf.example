@@ -16,5 +16,18 @@
       "target": "2,3,5,6,8,10",
       "value": "hash"
     }
+  },
+  "processing_tables": {
+    "b_user": {
+      "email": ["LOGIN", "EMAIL"],
+      "phone": ["PERSONAL_PHONE", "PERSONAL_FAX", "PERSONAL_MOBILE", "WORK_PHONE", "PERSONAL_FAX"]
+    },
+    "b_socialservices_user": {
+      "email": ["EMAIL"]
+    },
+    "b_iblock_element": {
+      "email": ["PREVIEW_TEXT", "DETAIL_TEXT", "SEARCHABLE_CONTENT"],
+      "phone": ["PREVIEW_TEXT", "DETAIL_TEXT", "SEARCHABLE_CONTENT"]
+    }
   }
 }

@@ -1,4 +1,4 @@
-# MaskDump - Database Anonymization Tool
+# 🇬🇧 MaskDump - Database Anonymization Tool
 
 ## Description
 
@@ -16,6 +16,22 @@ Use cases:
 - GDPR/CCPA compliance for data sharing
 - Database sanitization before analytics processing
 - Data masking for non-production environments
+
+### **Features**
+
+**1. Two Operation Modes:**
+- **Full File Processing** - works with any text files (SQL dumps, CSV, logs, etc.)
+- **Selective Processing** - masks only specified tables and fields (configured in `processing_tables`)
+
+**2. Table Exclusion**
+The `skip_insert_into_table_list` parameter skips inserts into specified tables (e.g., logs or system data).
+
+**3. Email & Phone Whitelist**
+Settings `email_white_list` and `phone_white_list` preserve specific emails and numbers from masking.
+
+**4. Flexible Masking Rules**
+- Partial email masking (e.g., `user@domain.com` → `us****@domain.com`)
+- Phone number obfuscation (e.g., `+7 (123) 456-78-90` → `+7 (***) ***-**-90`)
 
 ## Installation
 
@@ -109,18 +125,30 @@ support@company.org
 
 ## A quick example of the work
 
+### Data Pipeline Integration
+
 The input is a typical database dump string. The output is the same dump, but with changed email and phone numbers:
-```bash
+```sh
 $ echo "INSERT INTO users (id, email, phone) VALUES (123, 't098f6b@example.com', '+7 (904) 111-22-33'), (124, 'admin@site.org', '8-900-000-00-00');" | ./maskdump  --mask-email=light-hash --mask-phone=light-mask --no-cache
 ```
 Result:
-```bash
+```sh
 $ INSERT INTO users (id, email, phone) VALUES (123, 'ta6f5ce@example.com', '+7 (354) 101-72-53'), (124, 'a21232f@site.org', '8-700-160-90-20');
+```
+Example of working together with the mysqldump utility:
+```sh
+$ mysqldump --user=admin -p --host=localhost db_name | ./maskdump --mask-email=light-hash --mask-phone=light-mask >/tmp/maskdata_db_name.sql
+```
+
+### File-Based Processing
+
+```sh
+$ ./maskdump --mask-email=light-hash --mask-phone=light-mask <~/tmp/dump_db_name.sql >/tmp/maskdata_db_data.sql
 ```
 
 ---
 
-# MaskDump - Инструмент анонимизации баз данных
+# 🇷🇺 MaskDump - Инструмент анонимизации баз данных
 
 ## Описание
 
@@ -138,6 +166,22 @@ MaskDump - мощный инструмент для анонимизации б�
 - Обеспечение соответствия GDPR/CCPA
 - Очистка данных перед аналитикой
 - Маскировка данных для непродуктивных сред
+
+### **Возможности программы**
+
+**1. Два режима работы:**
+- **Обработка всего файла** - подходит для любых текстовых файлов (SQL-дампы, CSV, логи и др.)
+- **Выборочная обработка** - маскировка только указанных таблиц и полей (настраивается в `processing_tables` конфига)
+
+**2. Исключение таблиц из обработки**
+Параметр `skip_insert_into_table_list` позволяет пропускать вставки в заданные таблицы (например, логи или служебные данные).
+
+**3. Белый список email и телефонов**
+Настройки `email_white_list` и `phone_white_list` позволяют сохранить нетронутыми конкретные адреса и номера.
+
+**4. Гибкие правила маскировки**
+- Замена части email (например, `user@domain.com` → `us****@domain.com`)
+- Частичное скрытие телефонов (например, `+7 (123) 456-78-90` → `+7 (***) ***-**-90`)
 
 ## Установка
 
@@ -231,11 +275,23 @@ support@company.org
 
 ## Быстрый пример работы
 
+### Интеграция в пайплайн обработки данных
+
 На вход подаём строку типичного дампа базы данных. На выходе получаем этот же дамп, но с изменёнными email и телефонами:
-```bash
+```sh
 $ echo "INSERT INTO users (id, email, phone) VALUES (123, 't098f6b@example.com', '+7 (904) 111-22-33'), (124, 'admin@site.org', '8-900-000-00-00');" | ./maskdump  --mask-email=light-hash --mask-phone=light-mask --no-cache
 ```
 Результат:
-```bash
+```sh
 $ INSERT INTO users (id, email, phone) VALUES (123, 'ta6f5ce@example.com', '+7 (354) 101-72-53'), (124, 'a21232f@site.org', '8-700-160-90-20');
+```
+Пример совместной работы с утилитой mysqldump:
+```sh
+$ mysqldump --user=admin -p --host=localhost db_name | ./maskdump --mask-email=light-hash --mask-phone=light-mask >/tmp/maskdata_db_name.sql
+```
+
+### Обработка отдельного файла
+
+```sh
+$ ./maskdump --mask-email=light-hash --mask-phone=light-mask <~/tmp/dump_db_name.sql >/tmp/maskdata_db_data.sql
 ```
