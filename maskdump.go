@@ -113,6 +113,8 @@ func saveCache(cache *Cache) error {
 }
 
 func parseFlags() MaskConfig {
+	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError) // Сбрасываем флаги
+
 	emailAlg := flag.String("mask-email", "", "Email masking algorithm (light-hash)")
 	phoneAlg := flag.String("mask-phone", "", "Phone masking algorithm (light-mask)")
 	noCache := flag.Bool("no-cache", false, "Disable caching")

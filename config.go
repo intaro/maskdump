@@ -130,7 +130,12 @@ func LoadConfig(configPath string) error {
 	// Apply default values
 	AppConfig = defaultConfig
 
-	if configPath == "" {
+	// If the config is explicitly specified, but does not exist, we return an error.
+	if configPath != "" {
+		if _, err := os.Stat(configPath); os.IsNotExist(err) {
+			return fmt.Errorf("the specified config does not exist: %s", configPath)
+		}
+	} else {
 		// Try to find config near the binary
 		exePath, err := os.Executable()
 		if err != nil {
@@ -141,34 +146,38 @@ func LoadConfig(configPath string) error {
 
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		// Load white lists
-		EmailWhiteList, err = LoadWhiteList(AppConfig.EmailWhiteList)
-		if err != nil {
-			return fmt.Errorf("failed to load email white list: %v", err)
-		}
+		// If it was an implicit search for the config (not explicitly specified), then we continue with the default settings.
+		if configPath == filepath.Join(filepath.Dir(os.Args[0]), defaultConfigFileName) {
+			// Load white lists
+			EmailWhiteList, err = LoadWhiteList(AppConfig.EmailWhiteList)
+			if err != nil {
+				return fmt.Errorf("failed to load email white list: %v", err)
+			}
 
-		PhoneWhiteList, err = LoadWhiteList(AppConfig.PhoneWhiteList)
-		if err != nil {
-			return fmt.Errorf("failed to load phone white list: %v", err)
-		}
+			PhoneWhiteList, err = LoadWhiteList(AppConfig.PhoneWhiteList)
+			if err != nil {
+				return fmt.Errorf("failed to load phone white list: %v", err)
+			}
 
-		// Compile regular expressions
-		EmailRegex, err = regexp.Compile(AppConfig.EmailRegex)
-		if err != nil {
-			return fmt.Errorf("invalid email regex: %v", err)
-		}
+			// Compile regular expressions
+			EmailRegex, err = regexp.Compile(AppConfig.EmailRegex)
+			if err != nil {
+				return fmt.Errorf("invalid email regex: %v", err)
+			}
 
-		PhoneRegex, err = regexp.Compile(AppConfig.PhoneRegex)
-		if err != nil {
-			return fmt.Errorf("invalid phone regex: %v", err)
-		}
+			PhoneRegex, err = regexp.Compile(AppConfig.PhoneRegex)
+			if err != nil {
+				return fmt.Errorf("invalid phone regex: %v", err)
+			}
 
-		SkipTableList, err = LoadSkipList(AppConfig.SkipInsertIntoTableList)
-		if err != nil {
-			return fmt.Errorf("failed to load skip table list: %v", err)
-		}
+			SkipTableList, err = LoadSkipList(AppConfig.SkipInsertIntoTableList)
+			if err != nil {
+				return fmt.Errorf("failed to load skip table list: %v", err)
+			}
 
-		return nil // File not found - use default settings
+			return nil // File not found - use default settings
+		}
+		return fmt.Errorf("error reading the config: %v", err)
 	}
 
 	// Create temporary struct to unmarshal JSON
