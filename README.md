@@ -75,17 +75,17 @@ Create `maskdump.conf` in the same directory as the binary or specify path with 
 
 ```json
 {
-  "cache_path": "/path/to/cache.json",
+  "cache_path": "/home/user/.cache/maskdump/cache.json",
   "email_regex": "\\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\\b",
   "phone_regex": "(?:\\+7|7|8)?(?:[\\s\\-\\(\\)]*\\d){10}",
-  "email_white_list": "/path/to/white_list_email.txt",
-  "phone_white_list": "/path/to/white_list_phone.txt",
+  "email_white_list": "/home/user/.config/maskdump/white_list_email.txt",
+  "phone_white_list": "/home/user/.config/maskdump/white_list_phone.txt",
   "memory_limit_mb": 1024,
   "cache_flush_count": 1000,
-  "skip_insert_into_table_list": "/path/to/skip_table_list.txt",
+  "skip_insert_into_table_list": "/home/user/.config/maskdump/skip_table_list.txt",
   "masking": {
     "email": {
-      "target": "username:2-",
+      "target": "username:1~1",
       "value": "hash:6"
     },
     "phone": {
@@ -101,9 +101,14 @@ Create `maskdump.conf` in the same directory as the binary or specify path with 
     "b_socialservices_user": {
       "email": ["EMAIL"]
     }
+  },
+  "logging": {
+    "path": "/var/log/maskdump.log",
+    "level": "info"
   }
 }
 ```
+For logging / level, the possible values are "debug", "info", "warn", and "error".
 
 ### White lists
 
@@ -238,17 +243,17 @@ mysqldump dbname | ./maskdump --mask-email=light-hash --mask-phone=light-mask > 
 
 ```json
 {
-  "cache_path": "/path/to/cache.json",
+  "cache_path": "/home/user/.cache/maskdump/cache.json",
   "email_regex": "\\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\\b",
   "phone_regex": "(?:\\+7|7|8)?(?:[\\s\\-\\(\\)]*\\d){10}",
-  "email_white_list": "/path/to/white_list_email.txt",
-  "phone_white_list": "/path/to/white_list_phone.txt",
+  "email_white_list": "/home/user/.config/maskdump/white_list_email.txt",
+  "phone_white_list": "/home/user/.config/maskdump/white_list_phone.txt",
   "memory_limit_mb": 1024,
   "cache_flush_count": 1000,
-  "skip_insert_into_table_list": "/path/to/skip_table_list.txt",
+  "skip_insert_into_table_list": "/home/user/.config/maskdump/skip_table_list.txt",
   "masking": {
     "email": {
-      "target": "username:2-",
+      "target": "username:1~1",
       "value": "hash:6"
     },
     "phone": {
@@ -264,9 +269,14 @@ mysqldump dbname | ./maskdump --mask-email=light-hash --mask-phone=light-mask > 
     "b_socialservices_user": {
       "email": ["EMAIL"]
     }
+  },
+  "logging": {
+    "path": "/var/log/maskdump.log",
+    "level": "info"
   }
 }
 ```
+Для logging / level возможные значения: "debug", "info", "warn", "error"
 
 ### Белые списки
 
