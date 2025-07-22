@@ -466,9 +466,9 @@ func processLine(line string, config MaskConfig, cache *Cache, hasProcessingTabl
 // Keeps track of memory and cache. Reads the input buffer, starts processing of incoming strings.
 // Outputs to the output buffer the result after masking and ignoring the specified tables.
 func main() {
-	// Инициализация лога
+	// Log initialization
 	if err := InitLog(); err != nil {
-		fmt.Printf("Не удалось инициализировать лог: %v\n", err)
+		fmt.Printf("Failed to initialize the log: %v\n", err)
 	}
 	defer CloseLog()
 
@@ -501,13 +501,11 @@ func main() {
 	writer := bufio.NewWriterSize(os.Stdout, defaultMaxBufferSize)
 	defer writer.Flush()
 
-	// Проверяем, есть ли таблицы для обработки
+	// Checking if there are any processing tables
 	hasProcessingTables := len(ProcessingTables) > 0
 
 	lineCount := 0
 	for {
-		//line := "subspam@mail.ru" //DEBUG!!!
-		//var err error             //DEBUG!!!
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
@@ -541,57 +539,57 @@ func main() {
 	}
 }
 
-// InitLog инициализирует файл лога
+// InitLog initializes the log file
 func InitLog() error {
 	logMutex.Lock()
 	defer logMutex.Unlock()
 
 	if logFile != nil {
-		return nil // Уже инициализирован
+		return nil // Already initialized
 	}
 
-	// Получаем путь к директории с исполняемым файлом
+	// We get the path to the directory with the executable file
 	exePath, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("не удалось получить путь к исполняемому файлу: %v", err)
+		return fmt.Errorf("failed to get the path to the executable file: %v", err)
 	}
 
 	logPath := filepath.Join(filepath.Dir(exePath), "debug.log")
 
-	// Открываем файл для записи (создаем если не существует, добавляем в конец)
+	// Open the file for writing (create it if it doesn't exist, and add it to the end)
 	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("не удалось открыть файл лога: %v", err)
+		return fmt.Errorf("couldn't open the log file: %v", err)
 	}
 
 	logFile = file
 	return nil
 }
 
-// Log записывает сообщение в лог файл
+// Log writes a message to the log file
 func Log(message string) {
 	logMutex.Lock()
 	defer logMutex.Unlock()
 
 	if logFile == nil {
-		// Попробуем инициализировать, если еще не сделали
+		// Let's try to initialize if we haven't already
 		if err := InitLog(); err != nil {
-			fmt.Printf("Ошибка инициализации лога: %v\n", err)
+			fmt.Printf("Error initializing the log: %v\n", err)
 			return
 		}
 	}
 
-	// Форматируем текущее время
+	// Formatting the current time
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	logEntry := fmt.Sprintf("[%s] %s\n", timestamp, message)
 
-	// Записываем в файл
+	// Writing it to a file
 	if _, err := logFile.WriteString(logEntry); err != nil {
-		fmt.Printf("Ошибка записи в лог: %v\n", err)
+		fmt.Printf("Error writing to the log: %v\n", err)
 	}
 }
 
-// CloseLog закрывает файл лога
+// CloseLog closes the log file
 func CloseLog() {
 	logMutex.Lock()
 	defer logMutex.Unlock()
@@ -602,11 +600,11 @@ func CloseLog() {
 	}
 }
 
-// LogStruct логирует структуру в формате JSON
+// LogStruct logs a structure in JSON format
 func LogStruct(label string, v interface{}) {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		Log(fmt.Sprintf("%s: [ошибка сериализации: %v]", label, err))
+		Log(fmt.Sprintf("%s: [serialization error: %v]", label, err))
 		return
 	}
 	Log(fmt.Sprintf("%s: %s", label, string(data)))
