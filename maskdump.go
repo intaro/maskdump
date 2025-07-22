@@ -37,13 +37,142 @@ type MaskConfig struct {
 	configFile     string
 }
 
+type LogConfig struct {
+	Path  string `json:"path"`
+	Level string `json:"level"`
+}
+
 var (
 	memoryLimit     int64
 	currentMemUsage int64
 	memMutex        sync.Mutex
-	logFile         *os.File
-	logMutex        sync.Mutex
 )
+
+type Logger struct {
+	file  *os.File
+	mu    sync.Mutex
+	level int
+}
+
+const (
+	LevelDebug = iota
+	LevelInfo
+	LevelWarn
+	LevelError
+)
+
+var logger *Logger
+
+func (l *Logger) Check() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.file == nil {
+		return fmt.Errorf("log file not opened")
+	}
+
+	_, err := l.file.WriteString("\n")
+	return err
+}
+
+func NewLogger(config LogConfig) (*Logger, error) {
+	logPath := getDefaultLogPath(config.Path)
+
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		return nil, fmt.Errorf("failed to create log directory: %v", err)
+	}
+
+	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open log file: %v", err)
+	}
+
+	level := LevelInfo
+	switch strings.ToLower(config.Level) {
+	case "debug":
+		level = LevelDebug
+	case "warn":
+		level = LevelWarn
+	case "error":
+		level = LevelError
+	}
+
+	return &Logger{
+		file:  file,
+		level: level,
+	}, nil
+}
+
+// getDefaultLogPath returns the path to the log file following this search hierarchy:
+//  1. Explicitly specified path (if provided in config)
+//  2. $XDG_STATE_HOME/maskdump/logs/maskdump.log (following XDG Base Directory Specification)
+//  3. ~/.local/state/maskdump/logs/maskdump.log (fallback location)
+//
+// The function ensures the log directory structure exists before returning the path.
+// Typical locations:
+//   - /var/log/maskdump.log (if specified in config)
+//   - /home/user/.local/state/maskdump/logs/maskdump.log (default)
+//   - /home/user/.config/maskdump/logs/maskdump.log (if XDG_STATE_HOME not set)
+func getDefaultLogPath(explicitPath string) string {
+	if explicitPath != "" {
+		return explicitPath
+	}
+
+	// XDG Base Directory Specification
+	if stateHome := os.Getenv("XDG_STATE_HOME"); stateHome != "" {
+		return filepath.Join(stateHome, "maskdump", "logs", "maskdump.log")
+	}
+
+	// Fallback to ~/.local/state/maskdump/logs/maskdump.log
+	return filepath.Join(os.Getenv("HOME"), ".local", "state", "maskdump", "logs", "maskdump.log")
+}
+
+func (l *Logger) Close() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.file != nil {
+		return l.file.Close()
+	}
+	return nil
+}
+
+func (l *Logger) Debug(format string, v ...interface{}) {
+	if l.level <= LevelDebug {
+		l.log("DEBUG", format, v...)
+	}
+}
+
+func (l *Logger) Info(format string, v ...interface{}) {
+	if l.level <= LevelInfo {
+		l.log("INFO", format, v...)
+	}
+}
+
+func (l *Logger) Warn(format string, v ...interface{}) {
+	if l.level <= LevelWarn {
+		l.log("WARN", format, v...)
+	}
+}
+
+func (l *Logger) Error(format string, v ...interface{}) {
+	if l.level <= LevelError {
+		l.log("ERROR", format, v...)
+	}
+}
+
+func (l *Logger) log(level, format string, v ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	msg := fmt.Sprintf(format, v...)
+	timestamp := time.Now().Format("2006-01-02T15:04:05.000Z07:00")
+	logEntry := fmt.Sprintf("%s [%s] %s\n", timestamp, level, msg)
+
+	if _, err := l.file.Write([]byte(logEntry)); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to write log: %v\n", err)
+	}
+}
 
 func trackMemoryUsage() {
 	for {
@@ -119,6 +248,7 @@ func parseFlags() MaskConfig {
 	phoneAlg := flag.String("mask-phone", "", "Phone masking algorithm (light-mask)")
 	noCache := flag.Bool("no-cache", false, "Disable caching")
 	configFile := flag.String("config", "", "Path to config file")
+
 	flag.Parse()
 
 	return MaskConfig{
@@ -466,21 +596,56 @@ func processLine(line string, config MaskConfig, cache *Cache, hasProcessingTabl
 // Keeps track of memory and cache. Reads the input buffer, starts processing of incoming strings.
 // Outputs to the output buffer the result after masking and ignoring the specified tables.
 func main() {
-	// Log initialization
-	if err := InitLog(); err != nil {
-		fmt.Printf("Failed to initialize the log: %v\n", err)
-	}
-	defer CloseLog()
-
 	config := parseFlags()
-	if err := validateAlgorithms(config); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+
+	// Temporary logger for initialization errors
+	initLogger, err := NewLogger(LogConfig{
+		Path:  "/tmp/maskdump_init.log", // temporary file
+		Level: "error",
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create init logger: %v\n", err)
 		os.Exit(1)
 	}
+	defer func() {
+		initLogger.Close()
+		os.Remove("/tmp/maskdump_init.log")
+	}()
 
 	// Load configuration
 	if err := LoadConfig(config.configFile); err != nil {
+		initLogger.Error("Config error: %v", err)
 		fmt.Fprintf(os.Stderr, "Config error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Checking if the log directory exists
+	if err := os.MkdirAll(filepath.Dir(AppConfig.Logging.Path), 0755); err != nil {
+		initLogger.Error("Failed to create log directory: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to create log directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Now we initialize the main logger from the config
+	logger, err = NewLogger(AppConfig.Logging)
+	if err != nil {
+		initLogger.Error("Failed to initialize main logger: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to initialize main logger: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := logger.Check(); err != nil {
+		fmt.Fprintf(os.Stderr, "Logger check failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	defer logger.Close()
+
+	logger.Info("Starting maskdump with config from %s", config.configFile)
+	logger.Debug("Config settings: %+v", AppConfig)
+
+	if err := validateAlgorithms(config); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -489,7 +654,7 @@ func main() {
 		var err error
 		cache, err = loadCache()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Cache load warning: %v\n", err)
+			logger.Warn("Cache load warning: %v", err)
 		}
 	}
 
@@ -511,7 +676,7 @@ func main() {
 			if err == io.EOF {
 				break
 			}
-			fmt.Fprintf(os.Stderr, "Error reading input: %v\n", err)
+			logger.Error("Error reading input: %v", err)
 			os.Exit(1)
 		}
 
@@ -519,7 +684,7 @@ func main() {
 		if strings.TrimSpace(maskedLine) != "" {
 			_, err = writer.WriteString(maskedLine)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error writing output: %v\n", err)
+				logger.Error("Error writing output: %v", err)
 				os.Exit(1)
 			}
 		}
@@ -534,78 +699,9 @@ func main() {
 
 	if config.cacheEnabled && cache != nil {
 		if err := saveCache(cache); err != nil {
-			fmt.Fprintf(os.Stderr, "Cache save warning: %v\n", err)
-		}
-	}
-}
-
-// InitLog initializes the log file
-func InitLog() error {
-	logMutex.Lock()
-	defer logMutex.Unlock()
-
-	if logFile != nil {
-		return nil // Already initialized
-	}
-
-	// We get the path to the directory with the executable file
-	exePath, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to get the path to the executable file: %v", err)
-	}
-
-	logPath := filepath.Join(filepath.Dir(exePath), "debug.log")
-
-	// Open the file for writing (create it if it doesn't exist, and add it to the end)
-	file, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("couldn't open the log file: %v", err)
-	}
-
-	logFile = file
-	return nil
-}
-
-// Log writes a message to the log file
-func Log(message string) {
-	logMutex.Lock()
-	defer logMutex.Unlock()
-
-	if logFile == nil {
-		// Let's try to initialize if we haven't already
-		if err := InitLog(); err != nil {
-			fmt.Printf("Error initializing the log: %v\n", err)
-			return
+			logger.Warn("Cache save warning: %v", err)
 		}
 	}
 
-	// Formatting the current time
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	logEntry := fmt.Sprintf("[%s] %s\n", timestamp, message)
-
-	// Writing it to a file
-	if _, err := logFile.WriteString(logEntry); err != nil {
-		fmt.Printf("Error writing to the log: %v\n", err)
-	}
-}
-
-// CloseLog closes the log file
-func CloseLog() {
-	logMutex.Lock()
-	defer logMutex.Unlock()
-
-	if logFile != nil {
-		logFile.Close()
-		logFile = nil
-	}
-}
-
-// LogStruct logs a structure in JSON format
-func LogStruct(label string, v interface{}) {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		Log(fmt.Sprintf("%s: [serialization error: %v]", label, err))
-		return
-	}
-	Log(fmt.Sprintf("%s: %s", label, string(data)))
+	logger.Info("Processing completed, processed %d lines", lineCount)
 }

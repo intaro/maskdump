@@ -31,7 +31,7 @@ type MaskingConfig struct {
 	Phone MaskingRule `json:"phone"`
 }
 
-// Структура для хранения конфигурации таблиц
+// Structure for storing configuration tables
 type TableConfig struct {
 	Email []string `json:"email"`
 	Phone []string `json:"phone"`
@@ -48,6 +48,7 @@ type Config struct {
 	SkipInsertIntoTableList string                 `json:"skip_insert_into_table_list"`
 	Masking                 MaskingConfig          `json:"masking"`
 	ProcessingTables        map[string]TableConfig `json:"processing_tables"`
+	Logging                 LogConfig              `json:"logging"`
 }
 
 func getDefaultConfigPaths() []string {
@@ -231,6 +232,12 @@ func LoadConfig(explicitPath string) error {
 		if fileConfig.Masking.Phone.Value != "" {
 			AppConfig.Masking.Phone.Value = fileConfig.Masking.Phone.Value
 		}
+		if fileConfig.Logging.Path != "" {
+			AppConfig.Logging.Path = fileConfig.Logging.Path
+		}
+		if fileConfig.Logging.Level != "" {
+			AppConfig.Logging.Level = fileConfig.Logging.Level
+		}
 
 		// ProcessingTables handling
 		if len(fileConfig.ProcessingTables) > 0 {
@@ -276,6 +283,11 @@ func validateConfig() error {
 		if err := checkFileAccess(AppConfig.SkipInsertIntoTableList, false); err != nil {
 			return fmt.Errorf("skip table list error: %v", err)
 		}
+	}
+
+	if AppConfig.Logging.Path == "" {
+		// Set the default path if it is not specified in the config
+		AppConfig.Logging.Path = getDefaultLogPath("")
 	}
 
 	// Compile regular expressions
