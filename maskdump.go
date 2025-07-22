@@ -442,16 +442,17 @@ func processLine(line string, config MaskConfig, cache *Cache, hasProcessingTabl
 	if config.emailAlgorithm == "light-hash" {
 		if hasProcessingTables {
 			line = ProcessDumpLine(line, config, cache)
-		} else {
+		} else if EmailRegex != nil {
 			line = EmailRegex.ReplaceAllStringFunc(line, func(email string) string {
 				return maskEmailWithRules(email, cache)
 			})
 		}
 	}
+
 	if config.phoneAlgorithm == "light-mask" {
 		if hasProcessingTables {
 			line = ProcessDumpLine(line, config, cache)
-		} else {
+		} else if PhoneRegex != nil {
 			line = PhoneRegex.ReplaceAllStringFunc(line, func(phone string) string {
 				return maskPhoneWithRules(phone, cache)
 			})
