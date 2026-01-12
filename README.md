@@ -17,6 +17,8 @@ Use cases:
 - Database sanitization before analytics processing
 - Data masking for non-production environments
 
+Comments on the project can be left [here](https://github.com/intaro/maskdump/issues/1)
+
 ### **Features**
 
 **1. Two Operation Modes:**
@@ -184,6 +186,8 @@ MaskDump - мощный инструмент для анонимизации б�
 - Обеспечение соответствия GDPR/CCPA
 - Очистка данных перед аналитикой
 - Маскировка данных для непродуктивных сред
+
+Комментарии к проекту можно оставлять [тут](https://github.com/intaro/maskdump/issues/1)
 
 ### **Возможности программы**
 
