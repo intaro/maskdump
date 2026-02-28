@@ -3,3 +3,4 @@
 *.log
 *cache*.json
 maskdump
+.idea/
