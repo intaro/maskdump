@@ -24,12 +24,14 @@ const (
 	defaultMaxBufferSize = 1024 * 1024 * 10 // 10MB
 )
 
+// Cache stores masked values for deterministic replacements.
 type Cache struct {
 	Emails map[string]string `json:"emails"`
 	Phones map[string]string `json:"phones"`
 	sync.RWMutex
 }
 
+// MaskConfig holds CLI-level masking options.
 type MaskConfig struct {
 	emailAlgorithm string
 	phoneAlgorithm string
@@ -37,6 +39,7 @@ type MaskConfig struct {
 	configFile     string
 }
 
+// LogConfig configures file logging.
 type LogConfig struct {
 	Path  string `json:"path"`
 	Level string `json:"level"`
@@ -48,6 +51,7 @@ var (
 	memMutex        sync.Mutex
 )
 
+// Logger writes logs to a file with severity filtering.
 type Logger struct {
 	file  *os.File
 	mu    sync.Mutex
@@ -55,14 +59,19 @@ type Logger struct {
 }
 
 const (
+	// LevelDebug logs debug and higher.
 	LevelDebug = iota
+	// LevelInfo logs info and higher.
 	LevelInfo
+	// LevelWarn logs warn and higher.
 	LevelWarn
+	// LevelError logs only errors.
 	LevelError
 )
 
 var logger *Logger
 
+// Check validates that the logger is ready for writes.
 func (l *Logger) Check() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -75,6 +84,7 @@ func (l *Logger) Check() error {
 	return err
 }
 
+// NewLogger creates a new Logger based on configuration.
 func NewLogger(config LogConfig) (*Logger, error) {
 	logPath := getDefaultLogPath(config.Path)
 
@@ -127,6 +137,7 @@ func getDefaultLogPath(explicitPath string) string {
 	return filepath.Join(os.Getenv("HOME"), ".local", "state", "maskdump", "logs", "maskdump.log")
 }
 
+// Close closes the underlying log file.
 func (l *Logger) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -137,24 +148,28 @@ func (l *Logger) Close() error {
 	return nil
 }
 
+// Debug writes a debug log entry.
 func (l *Logger) Debug(format string, v ...interface{}) {
 	if l.level <= LevelDebug {
 		l.log("DEBUG", format, v...)
 	}
 }
 
+// Info writes an informational log entry.
 func (l *Logger) Info(format string, v ...interface{}) {
 	if l.level <= LevelInfo {
 		l.log("INFO", format, v...)
 	}
 }
 
+// Warn writes a warning log entry.
 func (l *Logger) Warn(format string, v ...interface{}) {
 	if l.level <= LevelWarn {
 		l.log("WARN", format, v...)
 	}
 }
 
+// Error writes an error log entry.
 func (l *Logger) Error(format string, v ...interface{}) {
 	if l.level <= LevelError {
 		l.log("ERROR", format, v...)
@@ -170,7 +185,7 @@ func (l *Logger) log(level, format string, v ...interface{}) {
 	logEntry := fmt.Sprintf("%s [%s] %s\n", timestamp, level, msg)
 
 	if _, err := l.file.Write([]byte(logEntry)); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to write log: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to write log: %v\n", err)
 	}
 }
 
@@ -200,7 +215,13 @@ func freeMemory(cache *Cache) {
 
 	// Flush cache to disk if possible
 	if AppConfig.CachePath != "" {
-		saveCache(cache)
+		if err := saveCache(cache); err != nil {
+			if logger != nil {
+				logger.Warn("Cache save warning: %v", err)
+			} else {
+				_, _ = fmt.Fprintf(os.Stderr, "Cache save warning: %v\n", err)
+			}
+		}
 	}
 
 	// Clear internal caches
@@ -604,25 +625,29 @@ func main() {
 		Level: "error",
 	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create init logger: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to create init logger: %v\n", err)
 		os.Exit(1)
 	}
 	defer func() {
-		initLogger.Close()
-		os.Remove("/tmp/maskdump_init.log")
+		if err := initLogger.Close(); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to close init logger: %v\n", err)
+		}
+		if err := os.Remove("/tmp/maskdump_init.log"); err != nil && !os.IsNotExist(err) {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to remove init log file: %v\n", err)
+		}
 	}()
 
 	// Load configuration
 	if err := LoadConfig(config.configFile); err != nil {
 		initLogger.Error("Config error: %v", err)
-		fmt.Fprintf(os.Stderr, "Config error: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Config error: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Checking if the log directory exists
 	if err := os.MkdirAll(filepath.Dir(AppConfig.Logging.Path), 0755); err != nil {
 		initLogger.Error("Failed to create log directory: %v", err)
-		fmt.Fprintf(os.Stderr, "Failed to create log directory: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to create log directory: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -630,22 +655,26 @@ func main() {
 	logger, err = NewLogger(AppConfig.Logging)
 	if err != nil {
 		initLogger.Error("Failed to initialize main logger: %v", err)
-		fmt.Fprintf(os.Stderr, "Failed to initialize main logger: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to initialize main logger: %v\n", err)
 		os.Exit(1)
 	}
 
 	if err := logger.Check(); err != nil {
-		fmt.Fprintf(os.Stderr, "Logger check failed: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Logger check failed: %v\n", err)
 		os.Exit(1)
 	}
 
-	defer logger.Close()
+	defer func() {
+		if err := logger.Close(); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to close logger: %v\n", err)
+		}
+	}()
 
 	logger.Info("Starting maskdump with config from %s", config.configFile)
 	logger.Debug("Config settings: %+v", AppConfig)
 
 	if err := validateAlgorithms(config); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -664,7 +693,11 @@ func main() {
 
 	reader := bufio.NewReaderSize(os.Stdin, defaultMaxBufferSize)
 	writer := bufio.NewWriterSize(os.Stdout, defaultMaxBufferSize)
-	defer writer.Flush()
+	defer func() {
+		if err := writer.Flush(); err != nil {
+			logger.Error("Error flushing output: %v", err)
+		}
+	}()
 
 	// Checking if there are any processing tables
 	hasProcessingTables := len(ProcessingTables) > 0

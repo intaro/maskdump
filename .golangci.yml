@@ -1,0 +1,25 @@
+run:
+  timeout: 3m
+  go: "1.26"
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - revive
+
+linters-settings:
+  revive:
+    severity: warning
+    rules:
+      - name: indent-error-flow
+      - name: superfluous-else
+      - name: early-return
+      - name: exported
+        arguments:
+          - "disableStutteringCheck"
+
+issues:
+  exclude-use-default: false

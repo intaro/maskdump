@@ -1257,7 +1257,11 @@ func TestValidateAlgorithms(t *testing.T) {
 func TestLoadSaveCache(t *testing.T) {
 	// Setup
 	AppConfig.CachePath = "test_cache.json"
-	defer os.Remove(AppConfig.CachePath) // Clean up after test
+	t.Cleanup(func() {
+		if err := os.Remove(AppConfig.CachePath); err != nil && !os.IsNotExist(err) {
+			t.Fatalf("failed to remove cache file %s: %v", AppConfig.CachePath, err)
+		}
+	})
 
 	cache := &Cache{
 		Emails: map[string]string{"test@example.com": "masked@example.com"},

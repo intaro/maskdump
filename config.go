@@ -14,29 +14,31 @@ const (
 	defaultConfigName      = "config"
 	defaultConfigDir       = "maskdump"
 	defaultCacheFileName   = ".maskdump_cache.json"
-	defaultConfigFileName  = "maskdump.conf"
 	defaultEmailRegex      = `\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}\b`
 	defaultPhoneRegex      = `\b(?:\+7|7|8)(?:[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{2}[\s-]?\d{2}|\d{10})\b`
 	defaultMemoryLimitMB   = 1024 * 4 // 4GB
 	defaultCacheFlushCount = 10000
 )
 
+// MaskingRule describes which positions to mask and how to replace them.
 type MaskingRule struct {
 	Target string `json:"target"`
 	Value  string `json:"value"`
 }
 
+// MaskingConfig groups masking rules for supported data types.
 type MaskingConfig struct {
 	Email MaskingRule `json:"email"`
 	Phone MaskingRule `json:"phone"`
 }
 
-// Structure for storing configuration tables
+// TableConfig stores table field names to be masked per data type.
 type TableConfig struct {
 	Email []string `json:"email"`
 	Phone []string `json:"phone"`
 }
 
+// Config holds the full application configuration.
 type Config struct {
 	CachePath               string                 `json:"cache_path"`
 	EmailRegex              string                 `json:"email_regex"`
@@ -69,6 +71,7 @@ func getDefaultConfigPaths() []string {
 	return paths
 }
 
+// LoadWhiteList loads a newline-delimited list of values to exclude from masking.
 func LoadWhiteList(path string) (map[string]struct{}, error) {
 	whiteList := make(map[string]struct{})
 
@@ -80,7 +83,11 @@ func LoadWhiteList(path string) (map[string]struct{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "failed to close whitelist file %s: %v\n", path, err)
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -97,6 +104,7 @@ func LoadWhiteList(path string) (map[string]struct{}, error) {
 	return whiteList, nil
 }
 
+// LoadSkipList loads a newline-delimited list of table names to skip.
 func LoadSkipList(path string) (map[string]struct{}, error) {
 	skipList := make(map[string]struct{})
 
@@ -108,7 +116,11 @@ func LoadSkipList(path string) (map[string]struct{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "failed to close skip list file %s: %v\n", path, err)
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -166,12 +178,11 @@ func LoadConfig(explicitPath string) error {
 
 	// 2. If the config is explicitly specified, but does not exist, we return an error.
 	if explicitPath != "" {
-		if _, err := os.Stat(explicitPath); err == nil {
-			configPath = explicitPath
-			found = true
-		} else {
+		if _, err := os.Stat(explicitPath); err != nil {
 			return fmt.Errorf("the specified config does not exist: %s", explicitPath)
 		}
+		configPath = explicitPath
+		found = true
 	} else {
 		// 3. Check standard paths
 		for _, path := range getDefaultConfigPaths() {
@@ -341,7 +352,9 @@ func checkFileAccess(path string, checkWrite bool) error {
 		}
 		// Delete the temporary file if it was created
 		if info, err := os.Stat(path); err == nil && info.Size() == 0 {
-			os.Remove(path)
+			if err := os.Remove(path); err != nil {
+				return fmt.Errorf("failed to remove temp file %s: %v", path, err)
+			}
 		}
 	} else if path != "" {
 		// We only check the existence of files.
