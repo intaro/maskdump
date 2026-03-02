@@ -1,0 +1,6 @@
+id,login,name,email,phone,group_id
+1,ivan.petrov@yandex.ru,Иван Петров,ivan.petrov@yandex.ru,+7 (916) 555-12-34,1
+2,(646) 555-0199,Emily Carter,emily.carter@yahoo.com,(646) 555-0199,2
+3,lukas.schmidt,Lukas Schmidt,lukas.schmidt@web.de,+49 30 1234 5678,3
+4,01 42 68 53 01,Camille Bernard,camille.bernard@free.fr,01 42 68 53 01,2
+5,erik.andersson@telia.se,Erik Andersson,erik.andersson@telia.se,+46 8 123 45 67,1

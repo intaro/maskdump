@@ -13,6 +13,11 @@ jobs:
       with:
         go-version-file: go.mod
         cache: true
+    - name: Generate integration fixtures
+      working-directory: tools
+      run: go run ./testdata_generator
+    - name: Verify generated fixtures are committed
+      run: git diff --exit-code -- testdata
     - run: go vet ./...
     - run: go test ./...
     - run: go test -race ./...
