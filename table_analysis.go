@@ -19,14 +19,6 @@ type FieldInfo struct {
 	Position int
 }
 
-// Глобальные переменные для хранения состояния
-var (
-	tableInfos      = make(map[string]*TableInfo)
-	currentTable    *TableInfo
-	processingTable bool
-	mutex           sync.Mutex
-)
-
 // Регулярные выражения для парсинга SQL
 var (
 	createTableRegex = regexp.MustCompile(`CREATE TABLE ` + "`" + `(.+?)` + "`")
@@ -34,33 +26,50 @@ var (
 	endTableRegex    = regexp.MustCompile(`\)[^)]*;`)
 )
 
+// TableParser keeps SQL dump parsing state isolated from package globals.
+type TableParser struct {
+	runtime         *Runtime
+	tableInfos      map[string]*TableInfo
+	currentTable    *TableInfo
+	processingTable bool
+	mutex           sync.Mutex
+}
+
+// NewTableParser creates an isolated parser state for selective dump processing.
+func NewTableParser(runtime *Runtime) *TableParser {
+	return &TableParser{
+		runtime:    runtime,
+		tableInfos: make(map[string]*TableInfo),
+	}
+}
+
 // ParseTableStructure анализирует строку дампа и собирает информацию о таблицах
-func ParseTableStructure(line string) {
-	mutex.Lock()
-	defer mutex.Unlock()
+func (p *TableParser) ParseTableStructure(line string) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
 	line = strings.TrimSpace(line)
 
 	// Проверяем начало новой таблицы
 	if matches := createTableRegex.FindStringSubmatch(line); matches != nil {
 		tableName := matches[1]
-		currentTable = &TableInfo{
+		p.currentTable = &TableInfo{
 			Name:   tableName,
 			Fields: make([]FieldInfo, 0),
 		}
-		processingTable = true
+		p.processingTable = true
 		return
 	}
 
 	// Если мы в процессе обработки таблицы
-	if processingTable && currentTable != nil {
+	if p.processingTable && p.currentTable != nil {
 		// Проверяем строки с определением полей
 		if matches := fieldRegex.FindStringSubmatch(line); matches != nil {
 			fieldName := matches[1]
 			fieldType := matches[2]
-			fieldPos := len(currentTable.Fields) + 1
+			fieldPos := len(p.currentTable.Fields) + 1
 
-			currentTable.Fields = append(currentTable.Fields, FieldInfo{
+			p.currentTable.Fields = append(p.currentTable.Fields, FieldInfo{
 				Name:     fieldName,
 				Type:     fieldType,
 				Position: fieldPos,
@@ -70,38 +79,38 @@ func ParseTableStructure(line string) {
 
 		// Проверяем конец определения таблицы
 		if endTableRegex.MatchString(line) {
-			tableInfos[currentTable.Name] = currentTable
-			currentTable = nil
-			processingTable = false
+			p.tableInfos[p.currentTable.Name] = p.currentTable
+			p.currentTable = nil
+			p.processingTable = false
 			return
 		}
 	}
 }
 
 // GetTableInfo возвращает информацию о таблице по имени
-func GetTableInfo(tableName string) (*TableInfo, bool) {
-	mutex.Lock()
-	defer mutex.Unlock()
+func (p *TableParser) GetTableInfo(tableName string) (*TableInfo, bool) {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
-	info, exists := tableInfos[tableName]
+	info, exists := p.tableInfos[tableName]
 	return info, exists
 }
 
 // GetAllTables возвращает информацию о всех найденных таблицах
-func GetAllTables() map[string]*TableInfo {
-	mutex.Lock()
-	defer mutex.Unlock()
+func (p *TableParser) GetAllTables() map[string]*TableInfo {
+	p.mutex.Lock()
+	defer p.mutex.Unlock()
 
 	// Создаем копию для безопасности
 	copy := make(map[string]*TableInfo)
-	for k, v := range tableInfos {
+	for k, v := range p.tableInfos {
 		copy[k] = v
 	}
 	return copy
 }
 
 // ProcessDumpLine обрабатывает строку дампа и возвращает модифицированную строку
-func ProcessDumpLine(line string, config MaskConfig, cache *Cache) string {
+func (p *TableParser) ProcessDumpLine(line string, config MaskConfig, cache *Cache) string {
 	// Проверяем, является ли строка INSERT запросом
 	matches := insertRegex.FindStringSubmatch(line)
 	if len(matches) != 3 {
@@ -112,7 +121,7 @@ func ProcessDumpLine(line string, config MaskConfig, cache *Cache) string {
 	valuesPart := matches[2]
 
 	// Проверяем, нужно ли обрабатывать эту таблицу
-	tableConfig, ok := ProcessingTables[tableName]
+	tableConfig, ok := p.runtime.ProcessingTables[tableName]
 	if !ok {
 		return line
 	}
@@ -122,7 +131,7 @@ func ProcessDumpLine(line string, config MaskConfig, cache *Cache) string {
 	}
 
 	// Получаем информацию о полях таблицы
-	tableInfo, ok := tableInfos[tableName]
+	tableInfo, ok := p.tableInfos[tableName]
 	if !ok {
 		return line // Нет информации о таблице, пропускаем
 	}
@@ -168,8 +177,8 @@ func ProcessDumpLine(line string, config MaskConfig, cache *Cache) string {
 			// Обрабатываем email поля
 			for pos := range emailFields {
 				if pos < len(values) && values[pos] != "" && values[pos] != "NULL" {
-					masked := EmailRegex.ReplaceAllStringFunc(values[pos], func(email string) string {
-						return maskEmailWithRules(email, cache)
+					masked := p.runtime.EmailRegex.ReplaceAllStringFunc(values[pos], func(email string) string {
+						return p.runtime.MaskEmailWithRules(email, cache)
 					})
 					if masked != values[pos] {
 						values[pos] = masked
@@ -183,8 +192,8 @@ func ProcessDumpLine(line string, config MaskConfig, cache *Cache) string {
 			// Обрабатываем phone поля
 			for pos := range phoneFields {
 				if pos < len(values) && values[pos] != "" && values[pos] != "NULL" {
-					masked := PhoneRegex.ReplaceAllStringFunc(values[pos], func(phone string) string {
-						return maskPhoneWithRules(phone, cache)
+					masked := p.runtime.PhoneRegex.ReplaceAllStringFunc(values[pos], func(phone string) string {
+						return p.runtime.MaskPhoneWithRules(phone, cache)
 					})
 					if masked != values[pos] {
 						values[pos] = masked
@@ -204,6 +213,26 @@ func ProcessDumpLine(line string, config MaskConfig, cache *Cache) string {
 
 	// Собираем модифицированную строку
 	return "INSERT INTO `" + tableName + "` VALUES " + modifiedValues
+}
+
+// ParseTableStructure keeps the legacy package-level API available.
+func ParseTableStructure(line string) {
+	defaultTableParser.ParseTableStructure(line)
+}
+
+// GetTableInfo keeps the legacy package-level API available.
+func GetTableInfo(tableName string) (*TableInfo, bool) {
+	return defaultTableParser.GetTableInfo(tableName)
+}
+
+// GetAllTables keeps the legacy package-level API available.
+func GetAllTables() map[string]*TableInfo {
+	return defaultTableParser.GetAllTables()
+}
+
+// ProcessDumpLine keeps the legacy package-level API available.
+func ProcessDumpLine(line string, config MaskConfig, cache *Cache) string {
+	return defaultTableParser.ProcessDumpLine(line, config, cache)
 }
 
 // parseTuple разбирает кортеж значений на отдельные элементы

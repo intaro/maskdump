@@ -16,9 +16,6 @@ func withTestGlobals(t *testing.T, fn func()) {
 	origPhoneWhiteList := PhoneWhiteList
 	origSkipTableList := SkipTableList
 	origProcessingTables := ProcessingTables
-	origTableInfos := tableInfos
-	origCurrentTable := currentTable
-	origProcessingTable := processingTable
 
 	t.Cleanup(func() {
 		AppConfig = origAppConfig
@@ -28,9 +25,7 @@ func withTestGlobals(t *testing.T, fn func()) {
 		PhoneWhiteList = origPhoneWhiteList
 		SkipTableList = origSkipTableList
 		ProcessingTables = origProcessingTables
-		tableInfos = origTableInfos
-		currentTable = origCurrentTable
-		processingTable = origProcessingTable
+		defaultTableParser = NewTableParser(NewRuntimeFromGlobals())
 	})
 
 	fn()
@@ -49,6 +44,12 @@ func setupMaskingDefaults(t *testing.T) {
 		Email: MaskingRule{Target: "username:2-", Value: "hash:6"},
 		Phone: MaskingRule{Target: "2,3,5,6,8,10", Value: "hash"},
 	}
+
+	defaultTableParser = NewTableParser(NewRuntimeFromGlobals())
+}
+
+func newTestRuntime() *Runtime {
+	return NewRuntimeFromGlobals()
 }
 
 func countDigits(s string) int {

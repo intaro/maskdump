@@ -23,6 +23,32 @@ var (
 	tupleRegex       = regexp.MustCompile(`\((?:[^()'"\\]|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|\\.|\([^()]*\))*\)`)
 )
 
+// Runtime groups masking dependencies explicitly to reduce package-level state usage.
+type Runtime struct {
+	Config           Config
+	EmailRegex       *regexp.Regexp
+	PhoneRegex       *regexp.Regexp
+	EmailWhiteList   map[string]struct{}
+	PhoneWhiteList   map[string]struct{}
+	SkipTableList    map[string]struct{}
+	ProcessingTables map[string]TableConfig
+}
+
+var defaultTableParser = NewTableParser(NewRuntimeFromGlobals())
+
+// NewRuntimeFromGlobals snapshots the current package-level runtime state.
+func NewRuntimeFromGlobals() *Runtime {
+	return &Runtime{
+		Config:           AppConfig,
+		EmailRegex:       EmailRegex,
+		PhoneRegex:       PhoneRegex,
+		EmailWhiteList:   EmailWhiteList,
+		PhoneWhiteList:   PhoneWhiteList,
+		SkipTableList:    SkipTableList,
+		ProcessingTables: ProcessingTables,
+	}
+}
+
 // TypeMaskingInfo is a data type marker for masking algorithms.
 type TypeMaskingInfo int
 

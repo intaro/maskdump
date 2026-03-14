@@ -290,6 +290,108 @@ func validateAlgorithms(config MaskConfig) error {
 	return nil
 }
 
+// MaskEmailWithRules masks one email value using the runtime's explicit dependencies.
+func (r *Runtime) MaskEmailWithRules(email string, cache *Cache) string {
+	if _, ok := r.EmailWhiteList[email]; ok {
+		return email
+	}
+
+	if cache != nil {
+		cache.RLock()
+		if masked, exists := cache.Emails[email]; exists {
+			cache.RUnlock()
+			return masked
+		}
+		cache.RUnlock()
+	}
+
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 {
+		return email
+	}
+
+	localPart := parts[0]
+	domainPart := parts[1]
+	target := r.Config.Masking.Email.Target
+	value := r.Config.Masking.Email.Value
+
+	var positions []int
+	if strings.Contains(target, "username:") {
+		positions = parseTargetPositions(strings.TrimPrefix(target, "username:"), len(localPart))
+		localPart = applyMasking(localPart, positions, value, Email)
+	} else if strings.Contains(target, "domain:") {
+		positions = parseTargetPositions(strings.TrimPrefix(target, "domain:"), len(domainPart))
+		domainPart = applyMasking(domainPart, positions, value, Email)
+	} else {
+		positions = parseTargetPositions(target, len(email))
+		masked := applyMasking(email, positions, value, Email)
+		if cache != nil {
+			cache.Lock()
+			cache.Emails[email] = masked
+			cache.Unlock()
+		}
+		return masked
+	}
+
+	masked := localPart + "@" + domainPart
+
+	if cache != nil {
+		cache.Lock()
+		cache.Emails[email] = masked
+		cache.Unlock()
+	}
+
+	return masked
+}
+
+// MaskPhoneWithRules masks one phone value using the runtime's explicit dependencies.
+func (r *Runtime) MaskPhoneWithRules(phone string, cache *Cache) string {
+	if _, ok := r.PhoneWhiteList[phone]; ok {
+		return phone
+	}
+
+	if cache != nil {
+		cache.RLock()
+		if masked, exists := cache.Phones[phone]; exists {
+			cache.RUnlock()
+			return masked
+		}
+		cache.RUnlock()
+	}
+
+	target := r.Config.Masking.Phone.Target
+	value := r.Config.Masking.Phone.Value
+
+	digits := regexp.MustCompile(`\d`).FindAllString(phone, -1)
+	digitStr := strings.Join(digits, "")
+
+	positions := parseTargetPositions(target, len(digitStr))
+	maskedDigits := applyMasking(digitStr, positions, value, Phone)
+
+	var result strings.Builder
+	digitIndex := 0
+	for _, c := range phone {
+		if c >= '0' && c <= '9' {
+			if digitIndex < len(maskedDigits) {
+				result.WriteByte(maskedDigits[digitIndex])
+				digitIndex++
+			}
+		} else {
+			result.WriteRune(c)
+		}
+	}
+
+	masked := result.String()
+
+	if cache != nil {
+		cache.Lock()
+		cache.Phones[phone] = masked
+		cache.Unlock()
+	}
+
+	return masked
+}
+
 func parseTargetPositions(target string, length int) []int {
 	var positions []int
 
@@ -414,105 +516,11 @@ func applyMasking(value string, positions []int, maskValue string, typeMaskingIn
 }
 
 func maskEmailWithRules(email string, cache *Cache) string {
-	if _, ok := EmailWhiteList[email]; ok {
-		return email
-	}
-
-	if cache != nil {
-		cache.RLock()
-		if masked, exists := cache.Emails[email]; exists {
-			cache.RUnlock()
-			return masked
-		}
-		cache.RUnlock()
-	}
-
-	parts := strings.Split(email, "@")
-	if len(parts) != 2 {
-		return email
-	}
-
-	localPart := parts[0]
-	domainPart := parts[1]
-
-	// Handling email by rule
-	target := AppConfig.Masking.Email.Target
-	value := AppConfig.Masking.Email.Value
-
-	// Determine which parts need to be masked
-	var positions []int
-	typeMaskingInfo := Email
-	if strings.Contains(target, "username:") {
-		positions = parseTargetPositions(strings.TrimPrefix(target, "username:"), len(localPart))
-		localPart = applyMasking(localPart, positions, value, typeMaskingInfo)
-	} else if strings.Contains(target, "domain:") {
-		positions = parseTargetPositions(strings.TrimPrefix(target, "domain:"), len(domainPart))
-		domainPart = applyMasking(domainPart, positions, value, typeMaskingInfo)
-	} else {
-		positions = parseTargetPositions(target, len(email))
-		masked := applyMasking(email, positions, value, typeMaskingInfo)
-		return masked
-	}
-
-	masked := localPart + "@" + domainPart
-
-	if cache != nil {
-		cache.Lock()
-		cache.Emails[email] = masked
-		cache.Unlock()
-	}
-
-	return masked
+	return NewRuntimeFromGlobals().MaskEmailWithRules(email, cache)
 }
 
 func maskPhoneWithRules(phone string, cache *Cache) string {
-	if _, ok := PhoneWhiteList[phone]; ok {
-		return phone
-	}
-
-	if cache != nil {
-		cache.RLock()
-		if masked, exists := cache.Phones[phone]; exists {
-			cache.RUnlock()
-			return masked
-		}
-		cache.RUnlock()
-	}
-
-	// Handling phones according to the rules
-	target := AppConfig.Masking.Phone.Target
-	value := AppConfig.Masking.Phone.Value
-
-	// We get only the digits for hashing
-	digits := regexp.MustCompile(`\d`).FindAllString(phone, -1)
-	digitStr := strings.Join(digits, "")
-
-	positions := parseTargetPositions(target, len(digitStr))
-	maskedDigits := applyMasking(digitStr, positions, value, Phone)
-
-	// Restore the original format with replaced digits
-	var result strings.Builder
-	digitIndex := 0
-	for _, c := range phone {
-		if c >= '0' && c <= '9' {
-			if digitIndex < len(maskedDigits) {
-				result.WriteByte(maskedDigits[digitIndex])
-				digitIndex++
-			}
-		} else {
-			result.WriteRune(c)
-		}
-	}
-
-	masked := result.String()
-
-	if cache != nil {
-		cache.Lock()
-		cache.Phones[phone] = masked
-		cache.Unlock()
-	}
-
-	return masked
+	return NewRuntimeFromGlobals().MaskPhoneWithRules(phone, cache)
 }
 
 // The function checks the character indices to be replaced.
@@ -577,9 +585,9 @@ func replacePositions(value string, positions []int, hash string) string {
 
 // It's a basic function. It processes incoming strings.
 // It starts the necessary masking functions according to the program settings.
-func processLine(line string, config MaskConfig, cache *Cache, hasProcessingTables bool) string {
-	if len(SkipTableList) > 0 {
-		for table := range SkipTableList {
+func processLine(line string, config MaskConfig, cache *Cache, runtime *Runtime, parser *TableParser, hasProcessingTables bool) string {
+	if len(runtime.SkipTableList) > 0 {
+		for table := range runtime.SkipTableList {
 			if strings.HasPrefix(line, "INSERT INTO `"+table+"`") {
 				return ""
 			}
@@ -587,25 +595,25 @@ func processLine(line string, config MaskConfig, cache *Cache, hasProcessingTabl
 	}
 
 	if hasProcessingTables {
-		ParseTableStructure(line)
+		parser.ParseTableStructure(line)
 	}
 
 	if config.emailAlgorithm == "light-hash" {
 		if hasProcessingTables {
-			line = ProcessDumpLine(line, config, cache)
-		} else if EmailRegex != nil {
-			line = EmailRegex.ReplaceAllStringFunc(line, func(email string) string {
-				return maskEmailWithRules(email, cache)
+			line = parser.ProcessDumpLine(line, config, cache)
+		} else if runtime.EmailRegex != nil {
+			line = runtime.EmailRegex.ReplaceAllStringFunc(line, func(email string) string {
+				return runtime.MaskEmailWithRules(email, cache)
 			})
 		}
 	}
 
 	if config.phoneAlgorithm == "light-mask" {
 		if hasProcessingTables {
-			line = ProcessDumpLine(line, config, cache)
-		} else if PhoneRegex != nil {
-			line = PhoneRegex.ReplaceAllStringFunc(line, func(phone string) string {
-				return maskPhoneWithRules(phone, cache)
+			line = parser.ProcessDumpLine(line, config, cache)
+		} else if runtime.PhoneRegex != nil {
+			line = runtime.PhoneRegex.ReplaceAllStringFunc(line, func(phone string) string {
+				return runtime.MaskPhoneWithRules(phone, cache)
 			})
 		}
 	}
@@ -690,6 +698,8 @@ func main() {
 	// Set memory limit
 	memoryLimit = int64(AppConfig.MemoryLimitMB) * 1024 * 1024
 	go trackMemoryUsage()
+	runtimeState := NewRuntimeFromGlobals()
+	parser := NewTableParser(runtimeState)
 
 	reader := bufio.NewReaderSize(os.Stdin, defaultMaxBufferSize)
 	writer := bufio.NewWriterSize(os.Stdout, defaultMaxBufferSize)
@@ -700,7 +710,7 @@ func main() {
 	}()
 
 	// Checking if there are any processing tables
-	hasProcessingTables := len(ProcessingTables) > 0
+	hasProcessingTables := len(runtimeState.ProcessingTables) > 0
 
 	lineCount := 0
 	for {
@@ -713,7 +723,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		maskedLine := processLine(line, config, cache, hasProcessingTables)
+		maskedLine := processLine(line, config, cache, runtimeState, parser, hasProcessingTables)
 		if strings.TrimSpace(maskedLine) != "" {
 			_, err = writer.WriteString(maskedLine)
 			if err != nil {
