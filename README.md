@@ -43,7 +43,7 @@ You can download a ready-to-use `maskdump` binary from the [Releases page](https
 
 ### Build from source
 
-1. Ensure you have Go installed (version 1.16+ recommended)
+1. Ensure you have Go installed (version 1.26.0+ recommended)
 2. Clone the repository:
    ```bash
    git clone https://github.com/intaro/maskdump.git
@@ -53,6 +53,21 @@ You can download a ready-to-use `maskdump` binary from the [Releases page](https
    ```bash
    go build -o maskdump .
    ```
+
+### Developer checks
+
+Install the pinned quality tools:
+
+```bash
+make tools
+```
+
+Run the full local verification flow:
+
+```bash
+make check
+go test ./...
+```
 
 ## Usage
 
@@ -217,7 +232,7 @@ MaskDump — мощный инструмент для анонимизации �
 
 ### Сборка из исходников
 
-1. Убедитесь, что установлен Go (версия 1.16+)
+1. Убедитесь, что установлен Go (версия 1.26.0+)
 2. Клонируйте репозиторий:
    ```bash
    git clone https://github.com/intaro/maskdump.git
@@ -227,6 +242,21 @@ MaskDump — мощный инструмент для анонимизации �
    ```bash
    go build -o maskdump .
    ```
+
+### Проверки для разработки
+
+Установите зафиксированные версии quality tools:
+
+```bash
+make tools
+```
+
+Запустите полный локальный набор проверок:
+
+```bash
+make check
+go test ./...
+```
 
 ## Использование
 
