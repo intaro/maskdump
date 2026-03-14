@@ -4,6 +4,13 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -13,11 +20,18 @@ jobs:
       with:
         go-version-file: go.mod
         cache: true
+    - name: Add Go bin directory to PATH
+      run: echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+    - name: Install quality tools
+      run: make tools
     - name: Generate integration fixtures
       working-directory: tools
       run: go run ./testdata_generator
     - name: Verify generated fixtures are committed
       run: git diff --exit-code -- testdata
-    - run: go vet ./...
-    - run: go test ./...
-    - run: go test -race ./...
+    - name: Run formatting and static checks
+      run: make check
+    - name: Run unit tests
+      run: go test ./...
+    - name: Run race tests
+      run: go test -race ./...
