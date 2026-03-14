@@ -53,11 +53,6 @@ func TestParseTuple(t *testing.T) {
 
 func TestParseTableStructureAndProcessDumpLine(t *testing.T) {
 	withTestGlobals(t, func() {
-		// Reset table parsing state
-		tableInfos = make(map[string]*TableInfo)
-		currentTable = nil
-		processingTable = false
-
 		setupMaskingDefaults(t)
 
 		ProcessingTables = map[string]TableConfig{
@@ -66,6 +61,8 @@ func TestParseTableStructureAndProcessDumpLine(t *testing.T) {
 				Phone: []string{"PHONE"},
 			},
 		}
+		runtimeState := newTestRuntime()
+		parser := NewTableParser(runtimeState)
 
 		createLines := []string{
 			"CREATE TABLE `users` (",
@@ -75,12 +72,12 @@ func TestParseTableStructureAndProcessDumpLine(t *testing.T) {
 			");",
 		}
 		for _, line := range createLines {
-			ParseTableStructure(line)
+			parser.ParseTableStructure(line)
 		}
 
 		config := MaskConfig{emailAlgorithm: "light-hash", phoneAlgorithm: "light-mask"}
 		line := "INSERT INTO `users` VALUES (1, 'test@example.com', '+7 (123) 456-78-90');"
-		out := ProcessDumpLine(line, config, nil)
+		out := parser.ProcessDumpLine(line, config, nil)
 
 		if out == line {
 			t.Fatalf("expected masked output, got unchanged line")
