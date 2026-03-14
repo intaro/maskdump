@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"runtime"
 	"runtime/debug"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,6 +38,7 @@ type MaskConfig struct {
 	phoneAlgorithm string
 	cacheEnabled   bool
 	configFile     string
+	cpuProfilePath string
 }
 
 // LogConfig configures file logging.
@@ -269,6 +271,7 @@ func parseFlags() MaskConfig {
 	phoneAlg := flag.String("mask-phone", "", "Phone masking algorithm (light-mask)")
 	noCache := flag.Bool("no-cache", false, "Disable caching")
 	configFile := flag.String("config", "", "Path to config file")
+	cpuProfile := flag.String("cpu-profile", "", "Write CPU profile to the specified file")
 
 	flag.Parse()
 
@@ -277,6 +280,7 @@ func parseFlags() MaskConfig {
 		phoneAlgorithm: *phoneAlg,
 		cacheEnabled:   !*noCache,
 		configFile:     *configFile,
+		cpuProfilePath: *cpuProfile,
 	}
 }
 
@@ -626,6 +630,25 @@ func processLine(line string, config MaskConfig, cache *Cache, runtime *Runtime,
 // Outputs to the output buffer the result after masking and ignoring the specified tables.
 func main() {
 	config := parseFlags()
+
+	if config.cpuProfilePath != "" {
+		profileFile, err := os.Create(config.cpuProfilePath)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to create CPU profile %s: %v\n", config.cpuProfilePath, err)
+			os.Exit(1)
+		}
+		if err := pprof.StartCPUProfile(profileFile); err != nil {
+			_ = profileFile.Close()
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to start CPU profile: %v\n", err)
+			os.Exit(1)
+		}
+		defer func() {
+			pprof.StopCPUProfile()
+			if err := profileFile.Close(); err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Failed to close CPU profile: %v\n", err)
+			}
+		}()
+	}
 
 	// Temporary logger for initialization errors
 	initLogger, err := NewLogger(LogConfig{

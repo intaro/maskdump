@@ -33,7 +33,10 @@ func withTestGlobals(t *testing.T, fn func()) {
 
 func setupMaskingDefaults(t *testing.T) {
 	t.Helper()
+	setupMaskingDefaultsState()
+}
 
+func setupMaskingDefaultsState() {
 	EmailRegex = regexp.MustCompile(defaultEmailRegex)
 	PhoneRegex = regexp.MustCompile(defaultPhoneRegex)
 	EmailWhiteList = map[string]struct{}{}
