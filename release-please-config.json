@@ -3,7 +3,6 @@
   "packages": {
     ".": {
       "release-type": "go",
-      "package-name": "maskdump",
       "include-v-in-tag": true,
       "changelog-path": "CHANGELOG.md"
     }
