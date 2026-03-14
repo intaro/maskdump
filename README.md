@@ -85,6 +85,7 @@ mysqldump dbname | ./maskdump --mask-email=light-hash --mask-phone=light-mask > 
 | `--mask-phone`   | Phone masking algorithm (`light-mask`)           | (disabled)   |
 | `--no-cache`     | Disable caching of masked values                 | false        |
 | `--config`       | Path to configuration file                      | (autodetect) |
+| `--cpu-profile`  | Write CPU profile for profiling runs            | (disabled)   |
 
 ### Configuration file
 
@@ -181,6 +182,12 @@ mysqldump --user=admin -p --host=localhost db_name | ./maskdump --mask-email=lig
 ./maskdump --mask-email=light-hash --mask-phone=light-mask <~/tmp/dump_db_name.sql >/tmp/maskdata_db_data.sql
 ```
 
+### Performance Notes
+
+- The CLI uses a buffered reader and writer with a `10 MiB` buffer (`defaultMaxBufferSize`).
+- Processing is line-oriented. Extremely large single-line dumps larger than the buffer budget should be split or the buffer constant should be adjusted before use.
+- For profiling runs, use `--cpu-profile=/path/to/profile.out` and inspect the result with `go tool pprof`.
+
 ## License
 
 MIT — see the [LICENSE](LICENSE) file.
@@ -274,6 +281,7 @@ mysqldump dbname | ./maskdump --mask-email=light-hash --mask-phone=light-mask > 
 | `--mask-phone`  | Алгоритм маскировки телефонов (`light-mask`) | (отключено)  |
 | `--no-cache`    | Отключить кэширование                        | false        |
 | `--config`      | Путь к конфигурационному файлу               | (автопоиск) |
+| `--cpu-profile` | Записать CPU profile для профилирования      | (отключено)  |
 
 ### Конфигурационный файл
 
@@ -369,6 +377,12 @@ mysqldump --user=admin -p --host=localhost db_name | ./maskdump --mask-email=lig
 ```sh
 ./maskdump --mask-email=light-hash --mask-phone=light-mask <~/tmp/dump_db_name.sql >/tmp/maskdata_db_data.sql
 ```
+
+### Замечания по производительности
+
+- CLI использует буферизированные reader/writer с буфером `10 MiB` (`defaultMaxBufferSize`).
+- Обработка идёт построчно. Если дамп содержит очень большие одиночные строки больше доступного буфера, их нужно предварительно разбить или увеличить константу буфера в коде.
+- Для профилирования используйте `--cpu-profile=/path/to/profile.out`, затем анализируйте результат через `go tool pprof`.
 
 ## Лицензия
 
