@@ -77,3 +77,56 @@ Do not consider the task complete until these checks have been run successfully,
 
 - Use Go `1.26.0` or newer.
 - Use the repository-provided tooling versions installed via `make tools` when local tools are missing.
+
+## GitHub Workflow Guidance
+
+- Prefer GitHub CLI `gh` for repository inspection when it is available and authenticated.
+- If `gh` is not available, use the GitHub web UI or local git state as fallback.
+- Do not assume repository admin access. First determine whether the current account can view:
+  - repository settings
+  - Actions runs and logs
+  - releases and tags
+  - pull requests
+- If admin-only settings are needed and the current account cannot access them, explicitly report the limitation instead of guessing.
+
+### PR and Merge Rules
+
+- Treat the PR title as the future squash commit message on `main`.
+- Prefer `Squash and merge`.
+- Before confirming a squash merge, ensure the final commit title matches the PR title exactly.
+- Avoid merge methods that change the release-significant commit message unexpectedly.
+
+### Release Please Rules
+
+- Release Please workflow file: `.github/workflows/release-please.yml`
+- Release Please config file: `release-please-config.json`
+- Release Please manifest file: `.release-please-manifest.json`
+- When working on Release Please configuration, preserve these workflow permissions unless there is a strong documented reason to change them:
+  - `contents: write`
+  - `issues: write`
+  - `pull-requests: write`
+- Do not enable `skip-labeling: true` for this repository unless the release flow is deliberately redesigned and revalidated.
+- If a merged release PR does not produce the expected tag or GitHub Release:
+  1. inspect GitHub Releases and tags
+  2. inspect the Release Please workflow log
+  3. confirm the merge commit landed on `main`
+  4. recover missing release objects only on the real merge commit
+  5. re-run Release Please after recovery
+- Do not create placeholder tags on arbitrary commits.
+
+### Standard GitHub CLI Commands
+
+- Repository:
+  - `gh repo view intaro/maskdump`
+- Pull requests:
+  - `gh pr list --repo intaro/maskdump --limit 20`
+  - `gh pr view <number> --repo intaro/maskdump`
+  - `gh pr diff <number> --repo intaro/maskdump`
+- Actions:
+  - `gh run list --repo intaro/maskdump --limit 20`
+  - `gh run view <run-id> --repo intaro/maskdump`
+  - `gh run view <run-id> --repo intaro/maskdump --log`
+  - `gh workflow run release-please.yml --repo intaro/maskdump`
+- Releases:
+  - `gh release list --repo intaro/maskdump --limit 20`
+  - `gh release view <tag> --repo intaro/maskdump`
