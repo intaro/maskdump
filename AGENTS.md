@@ -22,8 +22,11 @@ These instructions apply to any automated or assisted work in this repository.
 - Assume squash merge is the default strategy. In that model, the PR title is the authoritative message for release automation.
 - Keep commit subjects concise, imperative, and release-readable. Avoid vague subjects such as `updates`, `misc fixes`, or `changes`.
 - Do not mix unrelated change types in one commit or one PR when that would obscure release notes.
-- If a change is internal-only, avoid presenting it as a user-facing `feat` or `fix` unless it should affect versioning and release notes.
-- For release process details, see `docs/releasing.md`.
+- Choose the commit type by what the change actually affects. Only changes that alter the shipped `maskdump` binary warrant a release:
+  - Binary-affecting changes (`*.go` except `*_test.go`, `go.mod`, `go.sum`) use `feat:`, `fix:`, or `perf:` and trigger a release.
+  - Everything else — CI and workflows (`.github/`), documentation (`docs/`, `*.md`), tests and benchmarks (`*_test.go`, `testdata/`), tooling (`Makefile`, `tools/`), example configs — uses `ci:`, `docs:`, `test:`, `build:`, or `chore:` and must not trigger a release.
+- Release Please classifies commits by type only; the scope is ignored. `fix(ci): ...` is still a `fix` and produces a patch release, so never use `feat` or `fix` for infrastructure-only changes — write `ci(release): ...` instead.
+- For release process details, see `docs/releasing.md` -> "Version Discipline: What Warrants a Release".
 
 ## Required Validation After Changes
 
