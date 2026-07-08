@@ -40,7 +40,29 @@ Examples from the current baseline `v0.1.5`:
 - next merged releasable change is `feat(config): support yaml config` -> `v0.2.0`
 - next merged releasable change is `feat!: remove legacy config fields` -> `v1.0.0`
 
-Documentation-only or maintenance-only changes such as `docs:`, `test:`, `ci:`, and `chore:` should still use Conventional Commits, but they should not be relied on as the primary trigger for a release.
+Documentation-only or maintenance-only changes such as `docs:`, `test:`, `ci:`, and `chore:` do not trigger a release. See "Version Discipline: What Warrants a Release" below for how to pick the type.
+
+## Version Discipline: What Warrants a Release
+
+The version tag `vX.Y.Z` tracks the **shipped `maskdump` binary** only. Pick a commit type by *what the change actually affects*, not by how big it feels:
+
+- **Binary code and dependencies** — anything that changes the compiled `maskdump` binary or its behavior: `*.go` files (excluding `*_test.go`), `go.mod`, `go.sum`. Use `feat:` (new capability -> minor) or `fix:`/`perf:` (correction or optimization -> patch). These cut a new version and tag.
+- **Everything else** — CI and workflows (`.github/`), documentation (`docs/`, `README.md`, `*.md`), tests and benchmarks (`*_test.go`, `testdata/`), tooling (`Makefile`, `tools/`), and example configs (`*.conf.example`). Use `ci:`, `docs:`, `test:`, `build:`, or `chore:`. These do **not** bump the version: the released binary is unchanged, so there is no reason to publish a new release.
+
+Why it matters: a new tag signals to every consumer that the binary changed. CI, documentation, or test churn must never inflate the version.
+
+Two important details:
+
+- Release Please classifies commits by **type only; the scope is ignored**. `fix(ci): ...` is still a `fix` and produces a patch release. Never use `feat` or `fix` for infrastructure-only changes — use the matching non-releasing type with a scope instead, for example `ci(release): ...`.
+- Prefer `fix` over `feat` for corrections: `feat` is for new user-facing capability only; making previously incorrect behavior correct is a `fix`.
+
+Examples:
+
+- Adjust a GitHub Actions workflow -> `ci: ...` (no release).
+- Add a new masking algorithm -> `feat: ...` (minor).
+- Fix incorrect masking of emails with plus signs -> `fix: ...` (patch).
+- Reword the README -> `docs: ...` (no release).
+- Add benchmarks only -> `test: ...` (no release); if the same change also adds a binary feature such as a CPU profiling flag, it is a `feat`.
 
 ## What Developers Must Write
 
