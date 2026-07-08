@@ -95,6 +95,14 @@ Do not consider the task complete until these checks have been run successfully,
 - Prefer `Squash and merge`.
 - Before confirming a squash merge, ensure the final commit title matches the PR title exactly.
 - Avoid merge methods that change the release-significant commit message unexpectedly.
+- When asked to create a PR, prefer GitHub CLI over manual GitHub UI entry so the title is explicit and reproducible.
+- When creating a PR with `gh`, always pass the title explicitly with a Conventional Commit message instead of relying on branch-name-derived defaults.
+
+Preferred pattern:
+
+```bash
+gh pr create --repo intaro/maskdump --title "type(scope): short summary" --body "..."
+```
 
 ### Release Please Rules
 
