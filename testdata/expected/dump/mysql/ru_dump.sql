@@ -4,6 +4,7 @@
 -- ------------------------------------------------------
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET NAMES utf8mb4 */;
+
 DROP TABLE IF EXISTS `tst_groups`;
 CREATE TABLE `tst_groups` (
   `id` bigint NOT NULL,
@@ -15,6 +16,7 @@ INSERT INTO `tst_groups` VALUES
 (1,'admins','Administrators'),
 (2,'editors','Editorial Team'),
 (3,'support','Customer Success');
+
 DROP TABLE IF EXISTS `tst_users`;
 CREATE TABLE `tst_users` (
   `id` bigint NOT NULL,
@@ -31,6 +33,7 @@ INSERT INTO `tst_users` VALUES
 (3,'sergey-volkov','Сергей Волков','s608e39@bk.ru','7 015 893 35 37',3),
 (4,'o87cc5e@rambler.ru','Ольга Романова','o87cc5e@rambler.ru','+7 012 200 17 88',2),
 (5,'72962859031','Елена Соколова','e18ddbb@list.ru','72962859031',1);
+
 DROP TABLE IF EXISTS `tst_posts`;
 CREATE TABLE `tst_posts` (
   `id` bigint NOT NULL,

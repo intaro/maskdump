@@ -5,6 +5,7 @@
 SET statement_timeout = 0;
 SET client_encoding = 'UTF8';
 SET standard_conforming_strings = on;
+
 CREATE TABLE public.tst_groups (
     id bigint PRIMARY KEY,
     code varchar(64) NOT NULL,
@@ -14,6 +15,7 @@ INSERT INTO public.tst_groups (id, code, title) VALUES
 (1, 'admins', 'Administrators'),
 (2, 'editors', 'Editorial Team'),
 (3, 'support', 'Customer Success');
+
 CREATE TABLE public.tst_users (
     id bigint PRIMARY KEY,
     login varchar(255) NOT NULL,
@@ -28,6 +30,7 @@ INSERT INTO public.tst_users (id, login, name, email, phone, group_id) VALUES
 (3, 'l032979@mail.de', 'Leonie Fischer', 'l032979@mail.de', '+43 (59) 2540 6389', 3),
 (4, 'max.weber', 'Max Weber', 'm6aaafc@t-online.de', '017 980644', 2),
 (5, '01664836507', 'Sophie Becker', 's3e7368@posteo.de', '01664836507', 1);
+
 CREATE TABLE public.tst_posts (
     id bigint PRIMARY KEY,
     code varchar(128) NOT NULL,

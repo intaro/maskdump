@@ -39,6 +39,7 @@ type MaskConfig struct {
 	cacheEnabled   bool
 	configFile     string
 	cpuProfilePath string
+	dbFormat       string
 }
 
 // LogConfig configures file logging.
@@ -272,6 +273,7 @@ func parseFlags() MaskConfig {
 	noCache := flag.Bool("no-cache", false, "Disable caching")
 	configFile := flag.String("config", "", "Path to config file")
 	cpuProfile := flag.String("cpu-profile", "", "Write CPU profile to the specified file")
+	dbFormat := flag.String("db-format", "", "Dump dialect: auto|mysql|postgresql|oracle|mssql|sqlite|firebird (default: config db_format or auto)")
 
 	flag.Parse()
 
@@ -281,6 +283,7 @@ func parseFlags() MaskConfig {
 		cacheEnabled:   !*noCache,
 		configFile:     *configFile,
 		cpuProfilePath: *cpuProfile,
+		dbFormat:       *dbFormat,
 	}
 }
 
@@ -587,42 +590,25 @@ func replacePositions(value string, positions []int, hash string) string {
 	return string(final)
 }
 
-// It's a basic function. It processes incoming strings.
-// It starts the necessary masking functions according to the program settings.
-func processLine(line string, config MaskConfig, cache *Cache, runtime *Runtime, parser *TableParser, hasProcessingTables bool) string {
-	if len(runtime.SkipTableList) > 0 {
-		for table := range runtime.SkipTableList {
-			if strings.HasPrefix(line, "INSERT INTO `"+table+"`") {
-				return ""
-			}
-		}
+// resolveDialect picks the effective dump dialect: the CLI flag wins over
+// the config file, which defaults to auto-detection.
+func resolveDialect(config MaskConfig) (DumpDialect, error) {
+	if config.dbFormat != "" {
+		return ParseDumpDialect(config.dbFormat)
 	}
+	return ParseDumpDialect(AppConfig.DBFormat)
+}
 
-	if hasProcessingTables {
-		parser.ParseTableStructure(line)
-	}
+// flushableParser is implemented by parsers that may hold buffered input at
+// end of stream (auto-detection).
+type flushableParser interface {
+	Flush(config MaskConfig, cache *Cache) string
+}
 
-	if config.emailAlgorithm == "light-hash" {
-		if hasProcessingTables {
-			line = parser.ProcessDumpLine(line, config, cache)
-		} else if runtime.EmailRegex != nil {
-			line = runtime.EmailRegex.ReplaceAllStringFunc(line, func(email string) string {
-				return runtime.MaskEmailWithRules(email, cache)
-			})
-		}
-	}
-
-	if config.phoneAlgorithm == "light-mask" {
-		if hasProcessingTables {
-			line = parser.ProcessDumpLine(line, config, cache)
-		} else if runtime.PhoneRegex != nil {
-			line = runtime.PhoneRegex.ReplaceAllStringFunc(line, func(phone string) string {
-				return runtime.MaskPhoneWithRules(phone, cache)
-			})
-		}
-	}
-
-	return line
+// processLine routes one input line through the dialect parser. An empty
+// return with drop means the line is removed from the output.
+func processLine(line string, config MaskConfig, cache *Cache, parser DialectParser) (string, bool) {
+	return parser.ProcessLine(line, config, cache)
 }
 
 // The function prepares the required values of the setting variables.
@@ -722,7 +708,15 @@ func main() {
 	memoryLimit = int64(AppConfig.MemoryLimitMB) * 1024 * 1024
 	go trackMemoryUsage()
 	runtimeState := NewRuntimeFromGlobals()
-	parser := NewTableParser(runtimeState)
+
+	dialect, err := resolveDialect(config)
+	if err != nil {
+		logger.Error("Invalid db-format: %v", err)
+		_, _ = fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	parser := NewDialectParser(dialect, runtimeState)
+	logger.Info("Using dump dialect: %s", dialect)
 
 	reader := bufio.NewReaderSize(os.Stdin, defaultMaxBufferSize)
 	writer := bufio.NewWriterSize(os.Stdout, defaultMaxBufferSize)
@@ -732,22 +726,20 @@ func main() {
 		}
 	}()
 
-	// Checking if there are any processing tables
-	hasProcessingTables := len(runtimeState.ProcessingTables) > 0
-
 	lineCount := 0
 	for {
 		line, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
+		if err != nil && err != io.EOF {
 			logger.Error("Error reading input: %v", err)
 			os.Exit(1)
 		}
+		atEOF := err == io.EOF
+		if atEOF && line == "" {
+			break
+		}
 
-		maskedLine := processLine(line, config, cache, runtimeState, parser, hasProcessingTables)
-		if strings.TrimSpace(maskedLine) != "" {
+		maskedLine, drop := processLine(line, config, cache, parser)
+		if !drop {
 			_, err = writer.WriteString(maskedLine)
 			if err != nil {
 				logger.Error("Error writing output: %v", err)
@@ -759,6 +751,20 @@ func main() {
 		if lineCount%AppConfig.CacheFlushCount == 0 {
 			if checkMemoryLimit() {
 				freeMemory(cache)
+			}
+		}
+
+		if atEOF {
+			break
+		}
+	}
+
+	// Auto-detection may still hold buffered lines at end of stream.
+	if fp, ok := parser.(flushableParser); ok {
+		if tail := fp.Flush(config, cache); tail != "" {
+			if _, err := writer.WriteString(tail); err != nil {
+				logger.Error("Error writing output: %v", err)
+				os.Exit(1)
 			}
 		}
 	}

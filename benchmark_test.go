@@ -82,10 +82,10 @@ func BenchmarkProcessLine(b *testing.B) {
 	)
 	config := MaskConfig{emailAlgorithm: "light-hash", phoneAlgorithm: "light-mask"}
 	runtimeState := NewRuntimeFromGlobals()
-	parser := NewTableParser(runtimeState)
+	parser := NewDialectParser(DialectMySQL, runtimeState)
 
 	b.ResetTimer()
 	for b.Loop() {
-		_ = processLine(line, config, nil, runtimeState, parser, false)
+		_, _ = processLine(line, config, nil, parser)
 	}
 }

@@ -4,6 +4,7 @@ SET ANSI_NULLS ON
 GO
 SET QUOTED_IDENTIFIER ON
 GO
+
 CREATE TABLE [dbo].[tst_groups](
     [id] bigint NOT NULL,
     [code] nvarchar(64) NOT NULL,
@@ -15,6 +16,7 @@ INSERT INTO [dbo].[tst_groups] ([id], [code], [title]) VALUES (1, N'admins', N'A
 INSERT INTO [dbo].[tst_groups] ([id], [code], [title]) VALUES (2, N'editors', N'Editorial Team')
 INSERT INTO [dbo].[tst_groups] ([id], [code], [title]) VALUES (3, N'support', N'Customer Success')
 GO
+
 CREATE TABLE [dbo].[tst_users](
     [id] bigint NOT NULL,
     [login] nvarchar(255) NOT NULL,
@@ -31,6 +33,7 @@ INSERT INTO [dbo].[tst_users] ([id], [login], [name], [email], [phone], [group_i
 INSERT INTO [dbo].[tst_users] ([id], [login], [name], [email], [phone], [group_id]) VALUES (4, N'oscar.lindberg', N'Oscar Lindberg', N'o8b7f6b@bahnhof.se', N'070-715 472', 2)
 INSERT INTO [dbo].[tst_users] ([id], [login], [name], [email], [phone], [group_id]) VALUES (5, N'0911374868', N'Maja Karlsson', N'mf2f5a6@icloud.com', N'0911374868', 1)
 GO
+
 CREATE TABLE [dbo].[tst_posts](
     [id] bigint NOT NULL,
     [code] nvarchar(128) NOT NULL,

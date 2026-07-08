@@ -86,6 +86,9 @@ mysqldump dbname | ./maskdump --mask-email=light-hash --mask-phone=light-mask > 
 | `--no-cache`     | Disable caching of masked values                 | false        |
 | `--config`       | Path to configuration file                      | (autodetect) |
 | `--cpu-profile`  | Write CPU profile for profiling runs            | (disabled)   |
+| `--db-format`    | Dump dialect: `auto`, `mysql`, `postgresql`, `oracle`, `mssql`, `sqlite`, `firebird` | `auto` |
+
+With `--db-format=auto` (the default) the dialect is detected from the dump content. Explicitly setting the format is recommended for production pipelines: the flag overrides the `db_format` config field. Table skipping (`skip_insert_into_table_list`) and selective field masking (`processing_tables`) work for all listed dialects, including PostgreSQL `COPY ... FROM stdin` blocks. Table names in the config may be plain (`tst_users`) or schema-qualified (`public.tst_users`). If the dialect cannot be detected, maskdump falls back to full-line regex masking and logs a warning; selective filtering is disabled in that mode.
 
 ### Configuration file
 
@@ -93,6 +96,7 @@ Create `maskdump.conf` in the same directory as the binary or specify path with 
 
 ```json
 {
+  "db_format": "auto",
   "cache_path": "/home/user/.cache/maskdump/cache.json",
   "email_regex": "\\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\\b",
   "phone_regex": "(?:\\+7|7|8)?(?:[\\s\\-\\(\\)]*\\d){10}",
@@ -282,6 +286,9 @@ mysqldump dbname | ./maskdump --mask-email=light-hash --mask-phone=light-mask > 
 | `--no-cache`    | Отключить кэширование                        | false        |
 | `--config`      | Путь к конфигурационному файлу               | (автопоиск) |
 | `--cpu-profile` | Записать CPU profile для профилирования      | (отключено)  |
+| `--db-format`   | Диалект дампа: `auto`, `mysql`, `postgresql`, `oracle`, `mssql`, `sqlite`, `firebird` | `auto` |
+
+При `--db-format=auto` (по умолчанию) диалект определяется по содержимому дампа. Для production-пайплайнов рекомендуется указывать формат явно: флаг имеет приоритет над полем `db_format` конфига. Пропуск таблиц (`skip_insert_into_table_list`) и выборочная маскировка полей (`processing_tables`) работают для всех перечисленных диалектов, включая блоки PostgreSQL `COPY ... FROM stdin`. Имена таблиц в конфиге могут быть простыми (`tst_users`) или со схемой (`public.tst_users`). Если диалект определить не удалось, maskdump переходит к полнострочной regex-маскировке с предупреждением в логе; выборочная фильтрация в этом режиме отключается.
 
 ### Конфигурационный файл
 
@@ -289,6 +296,7 @@ mysqldump dbname | ./maskdump --mask-email=light-hash --mask-phone=light-mask > 
 
 ```json
 {
+  "db_format": "auto",
   "cache_path": "/home/user/.cache/maskdump/cache.json",
   "email_regex": "\\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}\\b",
   "phone_regex": "(?:\\+7|7|8)?(?:[\\s\\-\\(\\)]*\\d){10}",

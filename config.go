@@ -40,6 +40,7 @@ type TableConfig struct {
 
 // Config holds the full application configuration.
 type Config struct {
+	DBFormat                string                 `json:"db_format"`
 	CachePath               string                 `json:"cache_path"`
 	EmailRegex              string                 `json:"email_regex"`
 	PhoneRegex              string                 `json:"phone_regex"`
@@ -150,6 +151,7 @@ func LoadSkipList(path string) (map[string]struct{}, error) {
 func LoadConfig(explicitPath string) error {
 	// 1. Set default values first
 	defaultConfig := Config{
+		DBFormat:                string(DialectAuto),
 		CachePath:               filepath.Join(os.Getenv("HOME"), defaultCacheFileName),
 		EmailRegex:              defaultEmailRegex,
 		PhoneRegex:              defaultPhoneRegex,
@@ -207,6 +209,9 @@ func LoadConfig(explicitPath string) error {
 		}
 
 		// Override default values with non-empty values from config file
+		if fileConfig.DBFormat != "" {
+			AppConfig.DBFormat = fileConfig.DBFormat
+		}
 		if fileConfig.CachePath != "" {
 			AppConfig.CachePath = fileConfig.CachePath
 		}
@@ -266,6 +271,13 @@ func LoadConfig(explicitPath string) error {
 }
 
 func validateConfig() error {
+	// Validate the dump dialect selector
+	dialect, dialectErr := ParseDumpDialect(AppConfig.DBFormat)
+	if dialectErr != nil {
+		return dialectErr
+	}
+	AppConfig.DBFormat = string(dialect)
+
 	// For the cache, we check the directory's availability and write permissions
 	cacheDir := filepath.Dir(AppConfig.CachePath)
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
