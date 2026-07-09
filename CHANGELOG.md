@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/intaro/maskdump/compare/v0.4.0...v0.5.0) (2026-07-09)
+
+
+### Features
+
+* **dialect:** add no-masking list, oracle case folding and config key renames ([#20](https://github.com/intaro/maskdump/issues/20)) ([a1f5ca9](https://github.com/intaro/maskdump/commit/a1f5ca9cfa15a2df62d5ca314cc53777f9dfe52c))
+
 ## [0.4.0](https://github.com/intaro/maskdump/compare/v0.3.1...v0.4.0) (2026-07-09)
 
 
