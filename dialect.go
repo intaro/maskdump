@@ -102,7 +102,7 @@ func (p *genericDialectParser) Dialect() DumpDialect { return DialectGeneric }
 func (p *genericDialectParser) ProcessLine(line string, config MaskConfig, cache *Cache) (string, bool) {
 	if !p.warned {
 		p.warned = true
-		if (len(p.rt.SkipTableList) > 0 || len(p.rt.ProcessingTables) > 0) && logger != nil {
+		if (len(p.rt.SkipTableList) > 0 || len(p.rt.NoMaskTableList) > 0 || len(p.rt.ProcessingTables) > 0) && logger != nil {
 			logger.Warn("selective table filtering is disabled: dump dialect is unknown, applying full-line masking only")
 		}
 	}
@@ -168,48 +168,83 @@ func tableNameCandidates(raw string) []string {
 }
 
 // lookupProcessingTable finds the masking config for a table reference,
-// accepting both schema-qualified and plain config keys.
-func lookupProcessingTable(rt *Runtime, rawTable string) (TableConfig, bool) {
+// accepting both schema-qualified and plain config keys. With fold the match
+// is case-insensitive (Oracle folds unquoted identifiers to upper case, so
+// dump and config casing routinely differ).
+func lookupProcessingTable(rt *Runtime, rawTable string, fold bool) (TableConfig, bool) {
 	for _, name := range tableNameCandidates(rawTable) {
 		if cfg, ok := rt.ProcessingTables[name]; ok {
 			return cfg, true
+		}
+		if fold {
+			for key, cfg := range rt.ProcessingTables {
+				if strings.EqualFold(key, name) {
+					return cfg, true
+				}
+			}
 		}
 	}
 	return TableConfig{}, false
 }
 
-// isSkippedTable reports whether a table reference is in the skip list,
-// accepting both schema-qualified and plain config keys.
-func isSkippedTable(rt *Runtime, rawTable string) bool {
+// tableInList reports whether a table reference matches a configured table
+// list, accepting both schema-qualified and plain config keys.
+func tableInList(list map[string]struct{}, rawTable string, fold bool) bool {
 	for _, name := range tableNameCandidates(rawTable) {
-		if _, ok := rt.SkipTableList[name]; ok {
+		if _, ok := list[name]; ok {
 			return true
+		}
+		if fold {
+			for key := range list {
+				if strings.EqualFold(key, name) {
+					return true
+				}
+			}
 		}
 	}
 	return false
 }
 
+// isSkippedTable reports whether a table's data rows must be dropped.
+func isSkippedTable(rt *Runtime, rawTable string, fold bool) bool {
+	return tableInList(rt.SkipTableList, rawTable, fold)
+}
+
+// isNoMaskTable reports whether a table's data rows must pass through
+// without any masking.
+func isNoMaskTable(rt *Runtime, rawTable string, fold bool) bool {
+	return tableInList(rt.NoMaskTableList, rawTable, fold)
+}
+
 // fieldPositions resolves configured email/phone column names to 0-based
-// positions using an ordered column list. Unknown names are ignored.
-func fieldPositions(tableConfig TableConfig, columns []string, config MaskConfig) (emailPos, phonePos map[int]bool) {
+// positions using an ordered column list. Unknown names are ignored. With
+// fold the column names match case-insensitively.
+func fieldPositions(tableConfig TableConfig, columns []string, config MaskConfig, fold bool) (emailPos, phonePos map[int]bool) {
 	emailPos = make(map[int]bool)
 	phonePos = make(map[int]bool)
 
+	key := func(name string) string {
+		if fold {
+			return strings.ToLower(name)
+		}
+		return name
+	}
+
 	index := make(map[string]int, len(columns))
 	for i, col := range columns {
-		index[normalizeIdentifier(col)] = i
+		index[key(normalizeIdentifier(col))] = i
 	}
 
 	if config.emailAlgorithm == "light-hash" {
 		for _, name := range tableConfig.Email {
-			if i, ok := index[name]; ok {
+			if i, ok := index[key(name)]; ok {
 				emailPos[i] = true
 			}
 		}
 	}
 	if config.phoneAlgorithm == "light-mask" {
 		for _, name := range tableConfig.Phone {
-			if i, ok := index[name]; ok {
+			if i, ok := index[key(name)]; ok {
 				phonePos[i] = true
 			}
 		}

@@ -15,8 +15,10 @@ var (
 	EmailWhiteList map[string]struct{}
 	// PhoneWhiteList contains phone values that must not be masked.
 	PhoneWhiteList map[string]struct{}
-	// SkipTableList contains table names to skip during processing.
+	// SkipTableList contains table names whose data rows are dropped from the output.
 	SkipTableList map[string]struct{}
+	// NoMaskTableList contains table names whose data rows pass through unmasked.
+	NoMaskTableList map[string]struct{}
 	// ProcessingTables defines which tables and fields are masked in selective mode.
 	ProcessingTables map[string]TableConfig
 	insertRegex      = regexp.MustCompile(`INSERT INTO ` + "`" + `(.+?)` + "`" + ` VALUES (.+)`)
@@ -31,6 +33,7 @@ type Runtime struct {
 	EmailWhiteList   map[string]struct{}
 	PhoneWhiteList   map[string]struct{}
 	SkipTableList    map[string]struct{}
+	NoMaskTableList  map[string]struct{}
 	ProcessingTables map[string]TableConfig
 }
 
@@ -45,6 +48,7 @@ func NewRuntimeFromGlobals() *Runtime {
 		EmailWhiteList:   EmailWhiteList,
 		PhoneWhiteList:   PhoneWhiteList,
 		SkipTableList:    SkipTableList,
+		NoMaskTableList:  NoMaskTableList,
 		ProcessingTables: ProcessingTables,
 	}
 }

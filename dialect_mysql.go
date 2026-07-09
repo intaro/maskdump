@@ -30,6 +30,14 @@ func (p *mysqlDialectParser) ProcessLine(line string, config MaskConfig, cache *
 		}
 	}
 
+	if len(p.rt.NoMaskTableList) > 0 {
+		for table := range p.rt.NoMaskTableList {
+			if strings.HasPrefix(line, "INSERT INTO `"+table+"`") {
+				return line, false
+			}
+		}
+	}
+
 	if len(p.rt.ProcessingTables) > 0 {
 		p.tables.ParseTableStructure(line)
 		body, newline := splitTrailingNewline(line)
