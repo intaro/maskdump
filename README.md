@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/intaro/maskdump/actions/workflows/ci.yml/badge.svg)](https://github.com/intaro/maskdump/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/intaro/maskdump/branch/main/graph/badge.svg)](https://codecov.io/gh/intaro/maskdump)
-[![Go Report Card](https://goreportcard.com/badge/github.com/intaro/maskdump)](https://goreportcard.com/report/github.com/intaro/maskdump)
 [![Go version](https://img.shields.io/github/go-mod/go-version/intaro/maskdump?logo=go&logoColor=white)](go.mod)
 [![Release](https://img.shields.io/github/v/release/intaro/maskdump)](https://github.com/intaro/maskdump/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
