@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/intaro/maskdump/compare/v0.5.0...v0.5.1) (2026-07-09)
+
+
+### Bug Fixes
+
+* **runtime:** drop /tmp init log, stop wiping cache on startup ([#22](https://github.com/intaro/maskdump/issues/22)) ([2475e7d](https://github.com/intaro/maskdump/commit/2475e7df362be7ec380428ac5424a8720b5498d3))
+
 ## [0.5.0](https://github.com/intaro/maskdump/compare/v0.4.0...v0.5.0) (2026-07-09)
 
 
