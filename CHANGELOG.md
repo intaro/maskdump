@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/intaro/maskdump/compare/v0.3.1...v0.4.0) (2026-07-09)
+
+
+### Features
+
+* **dialect:** support table filtering across sql dump dialects ([#17](https://github.com/intaro/maskdump/issues/17)) ([6a9c436](https://github.com/intaro/maskdump/commit/6a9c43659cd8299739a09ed1cc0898b6d6077fb4))
+
 ## [0.3.1](https://github.com/intaro/maskdump/compare/v0.3.0...v0.3.1) (2026-03-16)
 
 
