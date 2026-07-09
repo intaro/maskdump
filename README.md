@@ -1,5 +1,11 @@
 # 🇬🇧 MaskDump - Database Anonymization Tool
 
+[![CI](https://github.com/intaro/maskdump/actions/workflows/ci.yml/badge.svg)](https://github.com/intaro/maskdump/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/intaro/maskdump/branch/main/graph/badge.svg)](https://codecov.io/gh/intaro/maskdump)
+[![Go version](https://img.shields.io/github/go-mod/go-version/intaro/maskdump?logo=go&logoColor=white)](go.mod)
+[![Release](https://img.shields.io/github/v/release/intaro/maskdump)](https://github.com/intaro/maskdump/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 ## Description
 
 MaskDump is a powerful tool for database anonymization and data masking designed to protect Personally Identifiable Information (PII) in database dumps. It provides secure PII obfuscation while maintaining data structure and format integrity.
