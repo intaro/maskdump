@@ -143,21 +143,23 @@ func (p *sqlStatementProcessor) processCreateTableLine(line string) bool {
 		return true
 	}
 
-	// Inside an open CREATE TABLE block. A ")" line (with or without a
-	// trailing ";") closes the definition; MSSQL emits it without ";".
+	// An INSERT reaching this point means the CREATE TABLE block never
+	// closed as expected: abandon DDL state instead of consuming data. This
+	// check must run before the end-of-block one: a single-line INSERT also
+	// matches endTableRegex ("...');" contains ");").
 	trimmed := strings.TrimSpace(line)
+	if sqlInsertRegex.MatchString(trimmed) {
+		p.creatingTable = ""
+		p.creatingColumns = nil
+		return false
+	}
+	// A ")" line (with or without a trailing ";") closes the definition;
+	// MSSQL emits it without ";".
 	if strings.HasPrefix(trimmed, ")") || endTableRegex.MatchString(line) {
 		p.rememberTable(p.creatingTable, p.creatingColumns)
 		p.creatingTable = ""
 		p.creatingColumns = nil
 		return true
-	}
-	// An INSERT reaching this point means the CREATE TABLE block never
-	// closed as expected: abandon DDL state instead of consuming data.
-	if sqlInsertRegex.MatchString(trimmed) {
-		p.creatingTable = ""
-		p.creatingColumns = nil
-		return false
 	}
 	if col, ok := columnFromDefinitionLine(line); ok {
 		p.creatingColumns = append(p.creatingColumns, col)

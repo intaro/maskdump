@@ -1,0 +1,13 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+    patch:
+      default:
+        informational: true
+
+ignore:
+  # Separate Go module with test-fixture tooling; not part of the shipped binary.
+  - "tools/**"
