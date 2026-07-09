@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/intaro/maskdump/compare/v0.5.1...v0.5.2) (2026-07-09)
+
+
+### Bug Fixes
+
+* **dialect:** mask INSERT arriving inside an unterminated CREATE TABLE ([#25](https://github.com/intaro/maskdump/issues/25)) ([b0b9d37](https://github.com/intaro/maskdump/commit/b0b9d37ed7ece2429c0c67d5be073bd7deafa7f5))
+
 ## [0.5.1](https://github.com/intaro/maskdump/compare/v0.5.0...v0.5.1) (2026-07-09)
 
 
