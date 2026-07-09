@@ -32,6 +32,9 @@ var sqlConstraintKeywords = map[string]struct{}{
 // INSERT or CREATE TABLE statement.
 type sqlStatementProcessor struct {
 	rt *Runtime
+	// fold enables case-insensitive identifier matching (Oracle folds
+	// unquoted identifiers to upper case).
+	fold bool
 	// tables collects column order per table (normalized full and plain
 	// names both point at the same entry).
 	tables map[string][]string
@@ -43,15 +46,25 @@ type sqlStatementProcessor struct {
 	// open INSERT statement state
 	insertActive bool
 	insertDrop   bool
+	insertNoMask bool
 	emailPos     map[int]bool
 	phonePos     map[int]bool
 }
 
-func newSQLStatementProcessor(rt *Runtime) *sqlStatementProcessor {
+func newSQLStatementProcessor(rt *Runtime, fold bool) *sqlStatementProcessor {
 	return &sqlStatementProcessor{
 		rt:     rt,
+		fold:   fold,
 		tables: make(map[string][]string),
 	}
+}
+
+// tableKey normalizes a table map key according to the fold mode.
+func (p *sqlStatementProcessor) tableKey(name string) string {
+	if p.fold {
+		return strings.ToLower(name)
+	}
+	return name
 }
 
 // rememberTable stores the column order for both schema-qualified and plain
@@ -61,14 +74,14 @@ func (p *sqlStatementProcessor) rememberTable(rawTable string, columns []string)
 		return
 	}
 	full, plain := normalizeTableName(rawTable)
-	p.tables[full] = columns
-	p.tables[plain] = columns
+	p.tables[p.tableKey(full)] = columns
+	p.tables[p.tableKey(plain)] = columns
 }
 
 // columnsFor returns the known column order for a table reference.
 func (p *sqlStatementProcessor) columnsFor(rawTable string) ([]string, bool) {
 	for _, name := range tableNameCandidates(rawTable) {
-		if cols, ok := p.tables[name]; ok {
+		if cols, ok := p.tables[p.tableKey(name)]; ok {
 			return cols, true
 		}
 	}
@@ -197,25 +210,44 @@ func columnFromDefinitionLine(line string) (string, bool) {
 	return name, true
 }
 
+// insertAction tells the dialect parser what to do with a line examined by
+// the INSERT machinery.
+type insertAction int
+
+const (
+	// insertNotHandled marks a line that is not part of an INSERT statement.
+	insertNotHandled insertAction = iota
+	// insertHandled marks INSERT output that full-line masking may still be
+	// applied to when selective mode is off.
+	insertHandled
+	// insertHandledRaw marks output of a no-mask table: never mask it.
+	insertHandledRaw
+	// insertDropped marks a line that is removed from the output.
+	insertDropped
+)
+
 // processInsertLine handles INSERT statements, multi-line VALUES lists and
-// skip-listed tables. It returns the transformed line, a drop flag and
-// whether the line belonged to an INSERT statement.
-func (p *sqlStatementProcessor) processInsertLine(line string, config MaskConfig, cache *Cache) (string, bool, bool) {
+// skip/no-mask-listed tables. It returns the transformed line and the action
+// the caller must take.
+func (p *sqlStatementProcessor) processInsertLine(line string, config MaskConfig, cache *Cache) (string, insertAction) {
 	// Continuation of an open multi-line VALUES list.
 	if p.insertActive {
 		if sqlTupleLineRegex.MatchString(line) {
-			drop := p.insertDrop
+			drop, noMask := p.insertDrop, p.insertNoMask
 			emailPos, phonePos := p.emailPos, p.phonePos
 			if statementTerminated(line) {
 				p.resetInsert()
 			}
-			if drop {
-				return "", true, true
+			switch {
+			case drop:
+				return "", insertDropped
+			case noMask:
+				return line, insertHandledRaw
+			case len(emailPos) == 0 && len(phonePos) == 0:
+				return line, insertHandled
+			default:
+				return maskTuples(p.rt, line, emailPos, phonePos, cache), insertHandled
 			}
-			if len(emailPos) == 0 && len(phonePos) == 0 {
-				return line, false, true
-			}
-			return maskTuples(p.rt, line, emailPos, phonePos, cache), false, true
 		}
 		// The line does not look like a tuple: the statement ended
 		// implicitly. Safety rule: never consume lines we are not sure
@@ -225,7 +257,7 @@ func (p *sqlStatementProcessor) processInsertLine(line string, config MaskConfig
 
 	matches := sqlInsertRegex.FindStringSubmatch(line)
 	if matches == nil {
-		return line, false, false
+		return line, insertNotHandled
 	}
 	table := matches[1]
 	columnList := matches[2]
@@ -234,25 +266,33 @@ func (p *sqlStatementProcessor) processInsertLine(line string, config MaskConfig
 	// Multi-line statements keep state until the closing ";".
 	multiLine := !statementTerminated(rest)
 
-	if isSkippedTable(p.rt, table) {
+	if isSkippedTable(p.rt, table, p.fold) {
 		if multiLine {
 			p.insertActive = true
 			p.insertDrop = true
 		}
-		return "", true, true
+		return "", insertDropped
 	}
 
-	tableConfig, ok := lookupProcessingTable(p.rt, table)
+	if isNoMaskTable(p.rt, table, p.fold) {
+		if multiLine {
+			p.insertActive = true
+			p.insertNoMask = true
+		}
+		return line, insertHandledRaw
+	}
+
+	tableConfig, ok := lookupProcessingTable(p.rt, table, p.fold)
 	if !ok {
 		if multiLine && strings.TrimSpace(rest) == "" {
 			// Open multi-line VALUES list of an unconfigured table: keep
-			// passing tuple lines through untouched.
+			// passing tuple lines through with no field awareness.
 			p.insertActive = true
 			p.insertDrop = false
 			p.emailPos = nil
 			p.phonePos = nil
 		}
-		return line, false, true
+		return line, insertHandled
 	}
 
 	var columns []string
@@ -267,10 +307,10 @@ func (p *sqlStatementProcessor) processInsertLine(line string, config MaskConfig
 		if logger != nil {
 			logger.Warn("no column information for table %s: leaving INSERT unmasked", table)
 		}
-		return line, false, true
+		return line, insertHandled
 	}
 
-	emailPos, phonePos := fieldPositions(tableConfig, columns, config)
+	emailPos, phonePos := fieldPositions(tableConfig, columns, config, p.fold)
 	if multiLine {
 		p.insertActive = true
 		p.insertDrop = false
@@ -278,19 +318,20 @@ func (p *sqlStatementProcessor) processInsertLine(line string, config MaskConfig
 		p.phonePos = phonePos
 	}
 	if strings.TrimSpace(rest) == "" {
-		return line, false, true
+		return line, insertHandled
 	}
 	masked := maskTuples(p.rt, rest, emailPos, phonePos, cache)
 	if masked == rest {
-		return line, false, true
+		return line, insertHandled
 	}
-	return line[:len(line)-len(rest)] + masked, false, true
+	return line[:len(line)-len(rest)] + masked, insertHandled
 }
 
 // resetInsert clears the multi-line INSERT statement state.
 func (p *sqlStatementProcessor) resetInsert() {
 	p.insertActive = false
 	p.insertDrop = false
+	p.insertNoMask = false
 	p.emailPos = nil
 	p.phonePos = nil
 }
@@ -307,7 +348,7 @@ func newSQLInsertDialectParser(rt *Runtime, dialect DumpDialect) *sqlInsertDiale
 	return &sqlInsertDialectParser{
 		dialect: dialect,
 		rt:      rt,
-		proc:    newSQLStatementProcessor(rt),
+		proc:    newSQLStatementProcessor(rt, dialect == DialectOracle),
 	}
 }
 
@@ -317,19 +358,26 @@ func (p *sqlInsertDialectParser) Dialect() DumpDialect { return p.dialect }
 // ProcessLine implements DialectParser.
 func (p *sqlInsertDialectParser) ProcessLine(line string, config MaskConfig, cache *Cache) (string, bool) {
 	selective := len(p.rt.ProcessingTables) > 0
+	filtering := selective || len(p.rt.SkipTableList) > 0 || len(p.rt.NoMaskTableList) > 0
 	body, newline := splitTrailingNewline(line)
 
 	if selective && !p.proc.insertActive && p.proc.processCreateTableLine(body) {
 		return line, false
 	}
 
-	if selective || len(p.rt.SkipTableList) > 0 {
-		out, drop, handled := p.proc.processInsertLine(body, config, cache)
-		if handled {
-			if drop {
-				return "", true
-			}
+	if filtering {
+		out, action := p.proc.processInsertLine(body, config, cache)
+		switch action {
+		case insertDropped:
+			return "", true
+		case insertHandledRaw:
 			return out + newline, false
+		case insertHandled:
+			if selective {
+				// Selective mode masks only configured fields.
+				return out + newline, false
+			}
+			return maskFullLine(p.rt, out, config, cache) + newline, false
 		}
 	}
 

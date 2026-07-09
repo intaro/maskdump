@@ -15,6 +15,7 @@ func withTestGlobals(t *testing.T, fn func()) {
 	origEmailWhiteList := EmailWhiteList
 	origPhoneWhiteList := PhoneWhiteList
 	origSkipTableList := SkipTableList
+	origNoMaskTableList := NoMaskTableList
 	origProcessingTables := ProcessingTables
 
 	t.Cleanup(func() {
@@ -24,6 +25,7 @@ func withTestGlobals(t *testing.T, fn func()) {
 		EmailWhiteList = origEmailWhiteList
 		PhoneWhiteList = origPhoneWhiteList
 		SkipTableList = origSkipTableList
+		NoMaskTableList = origNoMaskTableList
 		ProcessingTables = origProcessingTables
 		defaultTableParser = NewTableParser(NewRuntimeFromGlobals())
 	})
@@ -42,6 +44,7 @@ func setupMaskingDefaultsState() {
 	EmailWhiteList = map[string]struct{}{}
 	PhoneWhiteList = map[string]struct{}{}
 	SkipTableList = map[string]struct{}{}
+	NoMaskTableList = map[string]struct{}{}
 
 	AppConfig.Masking = MaskingConfig{
 		Email: MaskingRule{Target: "username:2-", Value: "hash:6"},

@@ -20,6 +20,7 @@ type postgresDialectParser struct {
 	// open COPY block state
 	copyActive bool
 	copyDrop   bool
+	copyNoMask bool
 	copyEmail  map[int]bool
 	copyPhone  map[int]bool
 }
@@ -27,7 +28,7 @@ type postgresDialectParser struct {
 func newPostgresDialectParser(rt *Runtime) *postgresDialectParser {
 	return &postgresDialectParser{
 		rt:   rt,
-		proc: newSQLStatementProcessor(rt),
+		proc: newSQLStatementProcessor(rt, false),
 	}
 }
 
@@ -37,7 +38,7 @@ func (p *postgresDialectParser) Dialect() DumpDialect { return DialectPostgreSQL
 // ProcessLine implements DialectParser.
 func (p *postgresDialectParser) ProcessLine(line string, config MaskConfig, cache *Cache) (string, bool) {
 	selective := len(p.rt.ProcessingTables) > 0
-	filtering := selective || len(p.rt.SkipTableList) > 0
+	filtering := selective || len(p.rt.SkipTableList) > 0 || len(p.rt.NoMaskTableList) > 0
 	body, newline := splitTrailingNewline(line)
 
 	// Rows inside an open COPY block.
@@ -50,10 +51,17 @@ func (p *postgresDialectParser) ProcessLine(line string, config MaskConfig, cach
 		if p.copyDrop {
 			return "", true
 		}
-		if len(p.copyEmail) == 0 && len(p.copyPhone) == 0 {
+		if p.copyNoMask {
 			return line, false
 		}
-		return p.maskCopyRow(body, cache) + newline, false
+		if len(p.copyEmail) > 0 || len(p.copyPhone) > 0 {
+			return p.maskCopyRow(body, cache) + newline, false
+		}
+		if selective {
+			// Selective mode masks only configured fields.
+			return line, false
+		}
+		return maskFullLine(p.rt, body, config, cache) + newline, false
 	}
 
 	if filtering {
@@ -67,12 +75,17 @@ func (p *postgresDialectParser) ProcessLine(line string, config MaskConfig, cach
 	}
 
 	if filtering {
-		out, drop, handled := p.proc.processInsertLine(body, config, cache)
-		if handled {
-			if drop {
-				return "", true
-			}
+		out, action := p.proc.processInsertLine(body, config, cache)
+		switch action {
+		case insertDropped:
+			return "", true
+		case insertHandledRaw:
 			return out + newline, false
+		case insertHandled:
+			if selective {
+				return out + newline, false
+			}
+			return maskFullLine(p.rt, out, config, cache) + newline, false
 		}
 	}
 
@@ -89,12 +102,17 @@ func (p *postgresDialectParser) ProcessLine(line string, config MaskConfig, cach
 func (p *postgresDialectParser) startCopyBlock(table, columnList, line string, config MaskConfig) (string, bool) {
 	p.copyActive = true
 
-	if isSkippedTable(p.rt, table) {
+	if isSkippedTable(p.rt, table, p.proc.fold) {
 		p.copyDrop = true
 		return "", true
 	}
 
-	if tableConfig, ok := lookupProcessingTable(p.rt, table); ok {
+	if isNoMaskTable(p.rt, table, p.proc.fold) {
+		p.copyNoMask = true
+		return line, false
+	}
+
+	if tableConfig, ok := lookupProcessingTable(p.rt, table, p.proc.fold); ok {
 		columns := splitColumnList(columnList)
 		if len(columns) == 0 {
 			// Safety rule: no confident column positions, no masking.
@@ -102,7 +120,7 @@ func (p *postgresDialectParser) startCopyBlock(table, columnList, line string, c
 				logger.Warn("cannot parse COPY column list for table %s: rows pass through unmasked", table)
 			}
 		} else {
-			p.copyEmail, p.copyPhone = fieldPositions(tableConfig, columns, config)
+			p.copyEmail, p.copyPhone = fieldPositions(tableConfig, columns, config, p.proc.fold)
 		}
 	}
 	return line, false
@@ -125,6 +143,7 @@ func (p *postgresDialectParser) maskCopyRow(body string, cache *Cache) string {
 func (p *postgresDialectParser) resetCopy() {
 	p.copyActive = false
 	p.copyDrop = false
+	p.copyNoMask = false
 	p.copyEmail = nil
 	p.copyPhone = nil
 }

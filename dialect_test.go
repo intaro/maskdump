@@ -462,3 +462,186 @@ func TestBlankLinesArePreserved(t *testing.T) {
 		}
 	})
 }
+
+// Oracle folds unquoted identifiers to upper case, so lower-case config keys
+// must match upper-case table and column names from the dump.
+func TestOracleCaseInsensitiveIdentifiers(t *testing.T) {
+	withTestGlobals(t, func() {
+		setupMaskingDefaults(t)
+		ProcessingTables = map[string]TableConfig{
+			"customers": {Email: []string{"email"}},
+		}
+		SkipTableList = map[string]struct{}{"audit_log": {}}
+
+		dump := "INSERT INTO CUSTOMERS (ID, EMAIL) VALUES (1, 'test@example.com');\n" +
+			"INSERT INTO AUDIT_LOG (ID, EMAIL) VALUES (7, 'gone@example.com');\n"
+
+		parser := NewDialectParser(DialectOracle, newTestRuntime())
+		out := processDump(t, parser, bothAlgorithms(), dump)
+
+		if !strings.Contains(out, "t098f6b@example.com") {
+			t.Fatalf("expected upper-case EMAIL column masked via lower-case config, got: %q", out)
+		}
+		if strings.Contains(out, "AUDIT_LOG") {
+			t.Fatalf("expected upper-case AUDIT_LOG dropped via lower-case skip entry, got: %q", out)
+		}
+	})
+}
+
+// Oracle CREATE TABLE column info must also match case-insensitively when
+// the INSERT carries no column list.
+func TestOracleCaseInsensitiveCreateTableColumns(t *testing.T) {
+	withTestGlobals(t, func() {
+		setupMaskingDefaults(t)
+		ProcessingTables = map[string]TableConfig{
+			"customers": {Email: []string{"email"}},
+		}
+
+		dump := "CREATE TABLE CUSTOMERS (ID NUMBER, EMAIL VARCHAR2(255));\n" +
+			"INSERT INTO CUSTOMERS VALUES (1, 'test@example.com');\n"
+
+		parser := NewDialectParser(DialectOracle, newTestRuntime())
+		out := processDump(t, parser, bothAlgorithms(), dump)
+
+		if !strings.Contains(out, "t098f6b@example.com") {
+			t.Fatalf("expected column positions from CREATE TABLE matched case-insensitively, got: %q", out)
+		}
+	})
+}
+
+// Identifier matching stays case-sensitive for non-Oracle dialects.
+func TestMySQLIdentifiersStayCaseSensitive(t *testing.T) {
+	withTestGlobals(t, func() {
+		setupMaskingDefaults(t)
+		ProcessingTables = map[string]TableConfig{
+			"users": {Email: []string{"email"}},
+		}
+
+		dump := "CREATE TABLE `Users` (\n" +
+			"  `id` int,\n" +
+			"  `email` varchar(255)\n" +
+			");\n" +
+			"INSERT INTO `Users` VALUES (1,'test@example.com');\n"
+
+		parser := NewDialectParser(DialectMySQL, newTestRuntime())
+		out := processDump(t, parser, bothAlgorithms(), dump)
+
+		if !strings.Contains(out, "test@example.com") {
+			t.Fatalf("expected case-mismatched table to stay unmasked, got: %q", out)
+		}
+	})
+}
+
+func TestNoMaskTableListMySQL(t *testing.T) {
+	withTestGlobals(t, func() {
+		setupMaskingDefaults(t)
+		NoMaskTableList = map[string]struct{}{"raw_data": {}}
+
+		parser := NewDialectParser(DialectMySQL, newTestRuntime())
+		out := processDump(t, parser, bothAlgorithms(),
+			"INSERT INTO `raw_data` VALUES (1,'keep@asis.com');\n"+
+				"INSERT INTO `other` VALUES (2,'mask@me.com');\n")
+
+		if !strings.Contains(out, "keep@asis.com") {
+			t.Fatalf("expected no-mask table left untouched, got: %q", out)
+		}
+		if strings.Contains(out, "mask@me.com") {
+			t.Fatalf("expected other tables full-line masked, got: %q", out)
+		}
+	})
+}
+
+func TestNoMaskTableListPostgresCopy(t *testing.T) {
+	withTestGlobals(t, func() {
+		setupMaskingDefaults(t)
+		NoMaskTableList = map[string]struct{}{"raw_data": {}}
+
+		dump := "COPY public.raw_data (id, email) FROM stdin;\n" +
+			"1\tkeep@asis.com\n" +
+			"\\.\n" +
+			"COPY public.other (id, email) FROM stdin;\n" +
+			"2\tmask@me.com\n" +
+			"\\.\n"
+
+		parser := NewDialectParser(DialectPostgreSQL, newTestRuntime())
+		out := processDump(t, parser, bothAlgorithms(), dump)
+
+		if !strings.Contains(out, "keep@asis.com") {
+			t.Fatalf("expected no-mask COPY block left untouched, got: %q", out)
+		}
+		if strings.Contains(out, "mask@me.com") {
+			t.Fatalf("expected other COPY rows full-line masked, got: %q", out)
+		}
+	})
+}
+
+// A multi-line VALUES list of a no-mask table passes through untouched, and
+// case-insensitive matching applies for Oracle.
+func TestNoMaskTableListOracleMultiLineInsert(t *testing.T) {
+	withTestGlobals(t, func() {
+		setupMaskingDefaults(t)
+		NoMaskTableList = map[string]struct{}{"raw_data": {}}
+
+		dump := "INSERT INTO RAW_DATA (ID, EMAIL) VALUES\n" +
+			"(1, 'keep@asis.com'),\n" +
+			"(2, 'also@keep.com');\n" +
+			"INSERT INTO OTHER (ID, EMAIL) VALUES (3, 'mask@me.com');\n"
+
+		parser := NewDialectParser(DialectOracle, newTestRuntime())
+		out := processDump(t, parser, bothAlgorithms(), dump)
+
+		if !strings.Contains(out, "keep@asis.com") || !strings.Contains(out, "also@keep.com") {
+			t.Fatalf("expected multi-line no-mask insert left untouched, got: %q", out)
+		}
+		if strings.Contains(out, "mask@me.com") {
+			t.Fatalf("expected other tables full-line masked, got: %q", out)
+		}
+	})
+}
+
+// Regression: with only a skip list configured (no selective masking), data
+// of non-skipped tables must still get full-line masking. Before the fix
+// INSERT statements and COPY rows bypassed the regex path entirely.
+func TestFullLineMaskingAppliesWithSkipListOnly(t *testing.T) {
+	withTestGlobals(t, func() {
+		setupMaskingDefaults(t)
+		SkipTableList = map[string]struct{}{"secrets": {}}
+
+		dump := "INSERT INTO [dbo].[secrets] (id, email) VALUES (1, 'gone@example.com')\n" +
+			"INSERT INTO [dbo].[other] (id, email) VALUES (2, 'mask@me.com')\n"
+
+		parser := NewDialectParser(DialectMSSQL, newTestRuntime())
+		out := processDump(t, parser, bothAlgorithms(), dump)
+
+		if strings.Contains(out, "gone@example.com") {
+			t.Fatalf("expected skipped table dropped, got: %q", out)
+		}
+		if strings.Contains(out, "mask@me.com") {
+			t.Fatalf("expected non-skipped INSERT full-line masked, got: %q", out)
+		}
+	})
+}
+
+func TestFullLineMaskingAppliesWithSkipListOnlyPostgresCopy(t *testing.T) {
+	withTestGlobals(t, func() {
+		setupMaskingDefaults(t)
+		SkipTableList = map[string]struct{}{"secrets": {}}
+
+		dump := "COPY public.secrets (id, email) FROM stdin;\n" +
+			"1\tgone@example.com\n" +
+			"\\.\n" +
+			"COPY public.other (id, email) FROM stdin;\n" +
+			"2\tmask@me.com\n" +
+			"\\.\n"
+
+		parser := NewDialectParser(DialectPostgreSQL, newTestRuntime())
+		out := processDump(t, parser, bothAlgorithms(), dump)
+
+		if strings.Contains(out, "gone@example.com") {
+			t.Fatalf("expected skipped COPY block dropped, got: %q", out)
+		}
+		if strings.Contains(out, "mask@me.com") {
+			t.Fatalf("expected non-skipped COPY rows full-line masked, got: %q", out)
+		}
+	})
+}

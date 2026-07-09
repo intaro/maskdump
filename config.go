@@ -39,6 +39,10 @@ type TableConfig struct {
 }
 
 // Config holds the full application configuration.
+//
+// skip_insert_into_table_list and processing_tables are deprecated aliases
+// of skip_table_data_list and masking_tables; LoadConfig folds them into the
+// canonical fields and warns.
 type Config struct {
 	DBFormat                string                 `json:"db_format"`
 	CachePath               string                 `json:"cache_path"`
@@ -49,8 +53,11 @@ type Config struct {
 	MemoryLimitMB           int                    `json:"memory_limit_mb"`
 	CacheFlushCount         int                    `json:"cache_flush_count"`
 	SkipInsertIntoTableList string                 `json:"skip_insert_into_table_list"`
+	SkipTableDataList       string                 `json:"skip_table_data_list"`
+	NoMaskingTableList      string                 `json:"no_masking_table_list"`
 	Masking                 MaskingConfig          `json:"masking"`
 	ProcessingTables        map[string]TableConfig `json:"processing_tables"`
+	MaskingTables           map[string]TableConfig `json:"masking_tables"`
 	Logging                 LogConfig              `json:"logging"`
 }
 
@@ -151,15 +158,15 @@ func LoadSkipList(path string) (map[string]struct{}, error) {
 func LoadConfig(explicitPath string) error {
 	// 1. Set default values first
 	defaultConfig := Config{
-		DBFormat:                string(DialectAuto),
-		CachePath:               filepath.Join(os.Getenv("HOME"), defaultCacheFileName),
-		EmailRegex:              defaultEmailRegex,
-		PhoneRegex:              defaultPhoneRegex,
-		EmailWhiteList:          "",
-		PhoneWhiteList:          "",
-		MemoryLimitMB:           defaultMemoryLimitMB,
-		CacheFlushCount:         defaultCacheFlushCount,
-		SkipInsertIntoTableList: "",
+		DBFormat:          string(DialectAuto),
+		CachePath:         filepath.Join(os.Getenv("HOME"), defaultCacheFileName),
+		EmailRegex:        defaultEmailRegex,
+		PhoneRegex:        defaultPhoneRegex,
+		EmailWhiteList:    "",
+		PhoneWhiteList:    "",
+		MemoryLimitMB:     defaultMemoryLimitMB,
+		CacheFlushCount:   defaultCacheFlushCount,
+		SkipTableDataList: "",
 		Masking: MaskingConfig{
 			Email: MaskingRule{
 				Target: "username:2-",
@@ -234,7 +241,17 @@ func LoadConfig(explicitPath string) error {
 			AppConfig.CacheFlushCount = fileConfig.CacheFlushCount
 		}
 		if fileConfig.SkipInsertIntoTableList != "" {
-			AppConfig.SkipInsertIntoTableList = fileConfig.SkipInsertIntoTableList
+			if fileConfig.SkipTableDataList != "" {
+				return fmt.Errorf("config file %s sets both skip_table_data_list and its deprecated alias skip_insert_into_table_list; keep only skip_table_data_list", configPath)
+			}
+			deprecatedKeyWarning("skip_insert_into_table_list", "skip_table_data_list")
+			AppConfig.SkipTableDataList = fileConfig.SkipInsertIntoTableList
+		}
+		if fileConfig.SkipTableDataList != "" {
+			AppConfig.SkipTableDataList = fileConfig.SkipTableDataList
+		}
+		if fileConfig.NoMaskingTableList != "" {
+			AppConfig.NoMaskingTableList = fileConfig.NoMaskingTableList
 		}
 		if fileConfig.Masking.Email.Target != "" {
 			AppConfig.Masking.Email.Target = fileConfig.Masking.Email.Target
@@ -255,10 +272,17 @@ func LoadConfig(explicitPath string) error {
 			AppConfig.Logging.Level = fileConfig.Logging.Level
 		}
 
-		// ProcessingTables handling
+		// Masking tables handling (processing_tables is the deprecated alias)
 		if len(fileConfig.ProcessingTables) > 0 {
-			AppConfig.ProcessingTables = fileConfig.ProcessingTables
-			ProcessingTables = fileConfig.ProcessingTables
+			if len(fileConfig.MaskingTables) > 0 {
+				return fmt.Errorf("config file %s sets both masking_tables and its deprecated alias processing_tables; keep only masking_tables", configPath)
+			}
+			deprecatedKeyWarning("processing_tables", "masking_tables")
+			fileConfig.MaskingTables = fileConfig.ProcessingTables
+		}
+		if len(fileConfig.MaskingTables) > 0 {
+			AppConfig.ProcessingTables = fileConfig.MaskingTables
+			ProcessingTables = fileConfig.MaskingTables
 		}
 	}
 
@@ -301,10 +325,15 @@ func validateConfig() error {
 		}
 	}
 
-	// Check skip table list file
-	if AppConfig.SkipInsertIntoTableList != "" {
-		if err := checkFileAccess(AppConfig.SkipInsertIntoTableList, false); err != nil {
+	// Check table list files
+	if AppConfig.SkipTableDataList != "" {
+		if err := checkFileAccess(AppConfig.SkipTableDataList, false); err != nil {
 			return fmt.Errorf("skip table list error: %v", err)
+		}
+	}
+	if AppConfig.NoMaskingTableList != "" {
+		if err := checkFileAccess(AppConfig.NoMaskingTableList, false); err != nil {
+			return fmt.Errorf("no-masking table list error: %v", err)
 		}
 	}
 
@@ -336,13 +365,24 @@ func validateConfig() error {
 		return fmt.Errorf("failed to load phone white list: %v", err)
 	}
 
-	// Load skip table list
-	SkipTableList, err = LoadSkipList(AppConfig.SkipInsertIntoTableList)
+	// Load table lists
+	SkipTableList, err = LoadSkipList(AppConfig.SkipTableDataList)
 	if err != nil {
 		return fmt.Errorf("failed to load skip table list: %v", err)
 	}
 
+	NoMaskTableList, err = LoadSkipList(AppConfig.NoMaskingTableList)
+	if err != nil {
+		return fmt.Errorf("failed to load no-masking table list: %v", err)
+	}
+
 	return nil
+}
+
+// deprecatedKeyWarning is printed to stderr because config loading happens
+// before the main logger is initialized.
+func deprecatedKeyWarning(oldKey, newKey string) {
+	_, _ = fmt.Fprintf(os.Stderr, "maskdump: config key %q is deprecated, use %q instead\n", oldKey, newKey)
 }
 
 func checkFileAccess(path string, checkWrite bool) error {
