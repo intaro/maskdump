@@ -645,3 +645,77 @@ func TestFullLineMaskingAppliesWithSkipListOnlyPostgresCopy(t *testing.T) {
 		}
 	})
 }
+
+// Multi-line CREATE TABLE: column definitions accumulate across lines,
+// constraint clauses are rejected, and ")" closes the block.
+func TestSQLMultiLineCreateTableColumns(t *testing.T) {
+	withTestGlobals(t, func() {
+		setupMaskingDefaults(t)
+		ProcessingTables = map[string]TableConfig{
+			"customers": {Email: []string{"email"}},
+		}
+
+		dump := "CREATE TABLE customers (\n" +
+			"  id NUMBER,\n" +
+			"  email VARCHAR2(255),\n" +
+			"  PRIMARY KEY (id)\n" +
+			");\n" +
+			"INSERT INTO customers VALUES (1, 'test@example.com');\n"
+
+		parser := NewDialectParser(DialectOracle, newTestRuntime())
+		out := processDump(t, parser, bothAlgorithms(), dump)
+
+		if !strings.Contains(out, "t098f6b@example.com") {
+			t.Fatalf("expected columns collected from multi-line CREATE TABLE, got: %q", out)
+		}
+	})
+}
+
+// An INSERT arriving inside an unterminated CREATE TABLE block must abandon
+// the DDL state instead of being consumed as a column definition.
+func TestSQLCreateTableAbandonedOnInsert(t *testing.T) {
+	withTestGlobals(t, func() {
+		setupMaskingDefaults(t)
+		ProcessingTables = map[string]TableConfig{
+			"customers": {Email: []string{"email"}},
+		}
+
+		dump := "CREATE TABLE broken (\n" +
+			"INSERT INTO customers (id, email) VALUES (1, 'test@example.com');\n"
+
+		parser := NewDialectParser(DialectOracle, newTestRuntime())
+		out := processDump(t, parser, bothAlgorithms(), dump)
+
+		if !strings.Contains(out, "t098f6b@example.com") {
+			t.Fatalf("expected INSERT processed after abandoned DDL block, got: %q", out)
+		}
+	})
+}
+
+func TestDialectAutoDetectionMoreMarkers(t *testing.T) {
+	cases := map[string]struct {
+		line    string
+		dialect DumpDialect
+	}{
+		"mssql":    {"INSERT INTO [dbo].[users] (id) VALUES (1)", DialectMSSQL},
+		"sqlite":   {"PRAGMA foreign_keys=OFF;", DialectSQLite},
+		"firebird": {"SET TERM ^ ;", DialectFirebird},
+		"oracle":   {"CREATE TABLE t (email VARCHAR2(255));", DialectOracle},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			withTestGlobals(t, func() {
+				setupMaskingDefaults(t)
+
+				parser := NewDialectParser(DialectAuto, newTestRuntime())
+				if parser.Dialect() != DialectAuto {
+					t.Fatalf("expected auto before detection, got: %s", parser.Dialect())
+				}
+				processDump(t, parser, bothAlgorithms(), tc.line+"\n")
+				if parser.Dialect() != tc.dialect {
+					t.Fatalf("expected %s detected, got: %s", tc.dialect, parser.Dialect())
+				}
+			})
+		})
+	}
+}
