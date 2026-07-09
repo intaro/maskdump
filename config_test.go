@@ -102,3 +102,36 @@ func TestLoadConfigRejectsAliasConflicts(t *testing.T) {
 		})
 	}
 }
+
+// Regression: the write-access probe used to truncate and delete an existing
+// file at the checked path, wiping the masking cache on every startup.
+func TestCheckFileAccessPreservesExistingContent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cache.json")
+	content := `{"emails":{"a@b.com":"masked@b.com"},"phones":{}}`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write fixture: %v", err)
+	}
+
+	if err := checkFileAccess(path, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("expected file to survive the probe: %v", err)
+	}
+	if string(got) != content {
+		t.Fatalf("expected content preserved, got: %q", got)
+	}
+}
+
+func TestCheckFileAccessRemovesProbeFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "cache.json")
+
+	if err := checkFileAccess(path, true); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("expected probe file removed when it did not exist before, stat err: %v", err)
+	}
+}

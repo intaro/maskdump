@@ -398,14 +398,21 @@ func checkFileAccess(path string, checkWrite bool) error {
 	}
 
 	if checkWrite {
-		// Checking the possibility of writing to the directory
-		if err := os.WriteFile(path, []byte(""), 0644); err != nil {
+		// Probe write access without touching existing content: the path
+		// may be a live file (e.g. the cache), so O_TRUNC must not be used.
+		_, statErr := os.Stat(path)
+		existed := statErr == nil
+		file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0644)
+		if err != nil {
 			return fmt.Errorf("there is no write access to %s: %v", path, err)
 		}
-		// Delete the temporary file if it was created
-		if info, err := os.Stat(path); err == nil && info.Size() == 0 {
+		if err := file.Close(); err != nil {
+			return fmt.Errorf("failed to close %s: %v", path, err)
+		}
+		// Remove the file only if the probe created it.
+		if !existed {
 			if err := os.Remove(path); err != nil {
-				return fmt.Errorf("failed to remove temp file %s: %v", path, err)
+				return fmt.Errorf("failed to remove probe file %s: %v", path, err)
 			}
 		}
 	} else if path != "" {

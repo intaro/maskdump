@@ -74,7 +74,9 @@ const (
 
 var logger *Logger
 
-// Check validates that the logger is ready for writes.
+// Check validates that the logger is ready for writes. The file is already
+// opened for writing by NewLogger; syncing validates the descriptor without
+// polluting the log with blank lines.
 func (l *Logger) Check() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -83,8 +85,7 @@ func (l *Logger) Check() error {
 		return fmt.Errorf("log file not opened")
 	}
 
-	_, err := l.file.WriteString("\n")
-	return err
+	return l.file.Sync()
 }
 
 // NewLogger creates a new Logger based on configuration.
@@ -636,42 +637,23 @@ func main() {
 		}()
 	}
 
-	// Temporary logger for initialization errors
-	initLogger, err := NewLogger(LogConfig{
-		Path:  "/tmp/maskdump_init.log", // temporary file
-		Level: "error",
-	})
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Failed to create init logger: %v\n", err)
-		os.Exit(1)
-	}
-	defer func() {
-		if err := initLogger.Close(); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to close init logger: %v\n", err)
-		}
-		if err := os.Remove("/tmp/maskdump_init.log"); err != nil && !os.IsNotExist(err) {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to remove init log file: %v\n", err)
-		}
-	}()
-
-	// Load configuration
+	// Until the main logger is initialized from the config, stderr is the
+	// only diagnostics channel: the log path itself comes from the config.
 	if err := LoadConfig(config.configFile); err != nil {
-		initLogger.Error("Config error: %v", err)
 		_, _ = fmt.Fprintf(os.Stderr, "Config error: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Checking if the log directory exists
 	if err := os.MkdirAll(filepath.Dir(AppConfig.Logging.Path), 0755); err != nil {
-		initLogger.Error("Failed to create log directory: %v", err)
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to create log directory: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Now we initialize the main logger from the config
+	var err error
 	logger, err = NewLogger(AppConfig.Logging)
 	if err != nil {
-		initLogger.Error("Failed to initialize main logger: %v", err)
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to initialize main logger: %v\n", err)
 		os.Exit(1)
 	}
