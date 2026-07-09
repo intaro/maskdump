@@ -596,15 +596,13 @@ func joinPostgresPosts(posts []post) string {
 
 func maskContent(content string) string {
 	parts := strings.SplitAfter(content, "\n")
-	filtered := make([]string, 0, len(parts))
+	masked := make([]string, 0, len(parts))
 	for _, part := range parts {
 		part = emailRegex.ReplaceAllStringFunc(part, maskEmail)
 		part = phoneRegex.ReplaceAllStringFunc(part, maskPhone)
-		if strings.TrimSpace(part) != "" {
-			filtered = append(filtered, part)
-		}
+		masked = append(masked, part)
 	}
-	return strings.Join(filtered, "")
+	return strings.Join(masked, "")
 }
 
 func maskEmail(email string) string {

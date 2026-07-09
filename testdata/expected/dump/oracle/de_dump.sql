@@ -1,12 +1,14 @@
 -- Oracle Database dump
 -- Schema: MASKDUMP_DE
 SET DEFINE OFF;
+
 BEGIN EXECUTE IMMEDIATE 'DROP TABLE tst_groups'; EXCEPTION WHEN OTHERS THEN NULL; END;
 /
 BEGIN EXECUTE IMMEDIATE 'DROP TABLE tst_users'; EXCEPTION WHEN OTHERS THEN NULL; END;
 /
 BEGIN EXECUTE IMMEDIATE 'DROP TABLE tst_posts'; EXCEPTION WHEN OTHERS THEN NULL; END;
 /
+
 CREATE TABLE tst_groups (
     id NUMBER(19) PRIMARY KEY,
     code VARCHAR2(64 CHAR) NOT NULL,
@@ -15,6 +17,7 @@ CREATE TABLE tst_groups (
 INSERT INTO tst_groups (id, code, title) VALUES (1, 'admins', 'Administrators');
 INSERT INTO tst_groups (id, code, title) VALUES (2, 'editors', 'Editorial Team');
 INSERT INTO tst_groups (id, code, title) VALUES (3, 'support', 'Customer Success');
+
 CREATE TABLE tst_users (
     id NUMBER(19) PRIMARY KEY,
     login VARCHAR2(255 CHAR) NOT NULL,
@@ -28,6 +31,7 @@ INSERT INTO tst_users (id, login, name, email, phone, group_id) VALUES (2, '050 
 INSERT INTO tst_users (id, login, name, email, phone, group_id) VALUES (3, 'l032979@mail.de', 'Leonie Fischer', 'l032979@mail.de', '+43 (59) 2540 6389', 3);
 INSERT INTO tst_users (id, login, name, email, phone, group_id) VALUES (4, 'max.weber', 'Max Weber', 'm6aaafc@t-online.de', '017 980644', 2);
 INSERT INTO tst_users (id, login, name, email, phone, group_id) VALUES (5, '01664836507', 'Sophie Becker', 's3e7368@posteo.de', '01664836507', 1);
+
 CREATE TABLE tst_posts (
     id NUMBER(19) PRIMARY KEY,
     code VARCHAR2(128 CHAR) NOT NULL,
